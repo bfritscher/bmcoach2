@@ -25,36 +25,31 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
 // import fscreen from 'fscreen'; // TODO #77: remove when vendor prefix no longer required
-import { mapState, mapActions } from 'pinia'
+import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useBMCStore } from '@/stores/bmc-store'
 
-export default {
-  name: 'PresentationControls',
-  data() {
-    return {
-      isFullscreen: false,
-    }
-  },
-  computed: {
-    ...mapState(useBmcUIStore, ['layout']),
-    ...mapState(useBMCStore, ['canvas']),
-  },
-  methods: {
-    ...mapActions(useBMCStore, ['presentationNext', 'presentationPrevious', 'presentationExit']),
-    toggleFullscreen() {
-      if (document.fullscreenElement) {
-        document.exitFullscreen()
-        this.isFullscreen = false
-      } else {
-        document.body.requestFullscreen().then(() => {
-          this.isFullscreen = true
-        })
-      }
-    },
-  },
+const isFullscreen = ref(false)
+
+const bmcUiStore = useBmcUIStore()
+const { layout } = storeToRefs(bmcUiStore)
+
+const bmcStore = useBMCStore()
+const { canvas } = storeToRefs(bmcStore)
+const { presentationNext, presentationPrevious, presentationExit } = bmcStore
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen()
+    isFullscreen.value = false
+  } else {
+    document.body.requestFullscreen().then(() => {
+      isFullscreen.value = true
+    })
+  }
 }
 </script>
 

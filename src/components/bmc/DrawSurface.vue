@@ -24,86 +24,86 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { COLORS_GESTURE } from '@/utils/constants'
 import SignaturePad, { PointGroup } from 'signature_pad'
-import { mapState } from 'pinia'
+import { storeToRefs } from 'pinia'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 
-export default {
-  data() {
-    return {
-      signaturePad: null as SignaturePad | null,
-      data: [] as PointGroup[],
-      width: 0,
-      height: 0,
-      COLORS_GESTURE,
-      penColor: '#F00',
-    }
-  },
-  computed: {
-    ...mapState(useBmcUIStore, ['layout']),
-  },
-  watch: {
-    'layout.showDrawSurface': function show(val) {
-      if (val) {
-        this.resizeCanvas()
-      }
-    },
-  },
-  mounted() {
-    const canvas = this.$refs.canvas as HTMLCanvasElement
-    if (!canvas) return;
-    this.signaturePad = new SignaturePad(canvas, {
-      backgroundColor: 'rgba(255, 255, 255, 0)',
-      penColor: this.penColor,
-      maxWidth: 3,
-      minWidth: 1,
-    })
-    this.signaturePad.addEventListener('endStroke', () => {
-      if (!this.signaturePad) return;
-      this.data = this.signaturePad.toData()
-      this.width = canvas.width
-      this.height = canvas.height
-    })
-    window.addEventListener('resize', this.resizeCanvas)
-    this.resizeCanvas()
-  },
-  methods: {
-    color(color: string) {
-      if (!this.signaturePad) return;
-      this.penColor = color
-      this.signaturePad.penColor = color
-    },
-    resizeCanvas() {
-      const canvas = this.$refs.canvas as HTMLCanvasElement
-      if (this.data && canvas) {
-        const ratio = 1 // Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio
-        canvas.height = canvas.offsetHeight * ratio
-        /*
-        canvas.getContext('2d').scale(ratio, ratio);
-        */
-        this.signaturePad?.fromData(
-          this.data.map((s) => {
-            return {
-              ...s,
-              points: s.points.map((p) => {
-                p.x = (p.x / this.width) * canvas.width
-                p.y = (p.y / this.height) * canvas.height
-                return p
-              }),
-            }
-          }),
-        )
-        this.width = canvas.width
-        this.height = canvas.height
-      } else {
-        this.signaturePad?.clear() // otherwise isEmpty() might return incorrect value
-      }
-    },
-  },
+const bmcUiStore = useBmcUIStore()
+const { layout } = storeToRefs(bmcUiStore)
+
+const signaturePad = ref<SignaturePad | null>(null)
+const data = ref<PointGroup[]>([])
+const width = ref(0)
+const height = ref(0)
+const penColor = ref('#F00')
+const canvas = ref<HTMLCanvasElement>()
+
+function color(newColor: string) {
+  if (!signaturePad.value) return
+  penColor.value = newColor
+  signaturePad.value.penColor = newColor
 }
+
+function resizeCanvas() {
+  if (data.value && canvas.value) {
+    const ratio = 1 // Math.max(window.devicePixelRatio || 1, 1);
+    canvas.value.width = canvas.value.offsetWidth * ratio
+    canvas.value.height = canvas.value.offsetHeight * ratio
+    /*
+    canvas.getContext('2d').scale(ratio, ratio);
+    */
+    signaturePad.value?.fromData(
+      data.value.map((s) => {
+        return {
+          ...s,
+          points: s.points.map((p) => {
+            p.x = (p.x / width.value) * (canvas.value?.width || 0)
+            p.y = (p.y / height.value) * (canvas.value?.height || 0)
+            return p
+          }),
+        }
+      }),
+    )
+    width.value = canvas.value.width
+    height.value = canvas.value.height
+  } else {
+    signaturePad.value?.clear() // otherwise isEmpty() might return incorrect value
+  }
+}
+
+watch(
+  () => layout.value.showDrawSurface,
+  (val) => {
+    if (val) {
+      resizeCanvas()
+    }
+  }
+)
+
+onMounted(() => {
+  if (!canvas.value) return
+  signaturePad.value = new SignaturePad(canvas.value, {
+    backgroundColor: 'rgba(255, 255, 255, 0)',
+    penColor: penColor.value,
+    maxWidth: 3,
+    minWidth: 1,
+  })
+  signaturePad.value.addEventListener('endStroke', () => {
+    if (!signaturePad.value || !canvas.value) return
+    data.value = signaturePad.value.toData()
+    width.value = canvas.value.width
+    height.value = canvas.value.height
+  })
+  window.addEventListener('resize', resizeCanvas)
+  resizeCanvas()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', resizeCanvas)
+})
 </script>
 
 <style>
