@@ -5,55 +5,60 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { gsap, Back } from 'gsap'
 import { random } from '@/utils/random'
 import AnimatedStar from '@/components/bmc/AnimatedStar.vue'
 
-export default {
-  components: {
-    AnimatedStar,
-  },
-  emits: ['input'],
-  data() {
-    return {
-      stars: new Array(20),
-      trigger: false,
-    }
-  },
-  mounted() {
-    this.animate()
-  },
-  methods: {
-    animate() {
-      this.reset()
-      this.animateText()
-      this.animateBlobs()
-    },
-    animateText() {
-      gsap.from(this.$refs.h1, 1.2, {
-        scale: 0,
-        opacity: 0,
-        rotation: 15,
-        ease: Back.easeOut.config(4),
-        onStart: () => {
-          this.$refs.h1.style.display = 'block'
-        },
-      })
-    },
-    animateBlobs() {
-      this.trigger = {
-        xSeed: random(350, 380),
-        ySeed: random(120, 170),
-      }
-    },
-    reset() {
-      this.trigger = false
-      this.$refs.h1.style.display = 'none'
-      gsap.set(this.$refs.h1, { scale: 1, opacity: 1, rotation: 0 })
-    },
-  },
+defineEmits<{
+  input: [value: boolean]
+}>()
+
+const stars = ref(new Array(20))
+const trigger = ref<{ xSeed: number; ySeed: number } | false>(false)
+const h1 = ref<HTMLElement>()
+
+function reset() {
+  trigger.value = false
+  if (h1.value) {
+    h1.value.style.display = 'none'
+    gsap.set(h1.value, { scale: 1, opacity: 1, rotation: 0 })
+  }
 }
+
+function animateText() {
+  if (h1.value) {
+    gsap.from(h1.value, 1.2, {
+      scale: 0,
+      opacity: 0,
+      rotation: 15,
+      ease: Back.easeOut.config(4),
+      onStart: () => {
+        if (h1.value) {
+          h1.value.style.display = 'block'
+        }
+      },
+    })
+  }
+}
+
+function animateBlobs() {
+  trigger.value = {
+    xSeed: random(350, 380),
+    ySeed: random(120, 170),
+  }
+}
+
+function animate() {
+  reset()
+  animateText()
+  animateBlobs()
+}
+
+onMounted(() => {
+  animate()
+})
 </script>
 
 <style scoped>

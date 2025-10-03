@@ -8,47 +8,57 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, watch, getCurrentInstance } from 'vue'
 import { gsap, Power1 } from 'gsap'
 import { random } from '@/utils/random'
 
-export default {
-  props: ['trigger'],
-  data() {
-    return {
-      display: 'none',
-    }
-  },
-  watch: {
-    trigger(value) {
-      if (value) {
-        this.animate(value.xSeed, value.ySeed)
-      }
-    },
-  },
-  methods: {
-    reset() {
-      gsap.set(this.$el, { x: 0, y: 0, opacity: 1 })
-    },
-    animate(xSeed, ySeed) {
-      this.reset()
-      gsap.to(this.$el, random(1, 5), {
-        x: random(-xSeed, xSeed),
-        y: random(-ySeed, ySeed),
-        ease: Power1.easeOut,
-        opacity: 0,
-        rotation: random(5, 100),
-        scale: random(0.8, 1.5),
-        onStart: () => {
-          this.display = 'block'
-        },
-        onComplete: () => {
-          this.display = 'none'
-        },
-      })
-    },
-  },
+interface TriggerValue {
+  xSeed: number
+  ySeed: number
 }
+
+const props = defineProps<{
+  trigger?: TriggerValue | false
+}>()
+
+const display = ref('none')
+const instance = getCurrentInstance()
+
+function reset() {
+  if (instance?.proxy?.$el) {
+    gsap.set(instance.proxy.$el, { x: 0, y: 0, opacity: 1 })
+  }
+}
+
+function animate(xSeed: number, ySeed: number) {
+  reset()
+  if (instance?.proxy?.$el) {
+    gsap.to(instance.proxy.$el, random(1, 5), {
+      x: random(-xSeed, xSeed),
+      y: random(-ySeed, ySeed),
+      ease: Power1.easeOut,
+      opacity: 0,
+      rotation: random(5, 100),
+      scale: random(0.8, 1.5),
+      onStart: () => {
+        display.value = 'block'
+      },
+      onComplete: () => {
+        display.value = 'none'
+      },
+    })
+  }
+}
+
+watch(
+  () => props.trigger,
+  (value) => {
+    if (value) {
+      animate(value.xSeed, value.ySeed)
+    }
+  }
+)
 </script>
 
 <style scoped>
