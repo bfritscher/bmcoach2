@@ -81,9 +81,9 @@ export const useItemsStore = defineStore('items', () => {
 
   //TODO offline handle?
   // TODO handle error and revert local update
-  const addItem = (type: string, data: object) => {
+  const addItem = (type: string, data: object): string => {
     const teamId = teamsStore.currentTeam?.$id
-    if (!teamId) return
+    if (!teamId) return ''
     const $id = uuid()
     const localPayload = {
       type: type,

@@ -113,12 +113,16 @@ watchEffect(() => {
     const points: Point[] = []
     localChartState.factors.forEach(function (factor) {
       //TODO handle animation of drag?
-      if (localChartState.offerings[`${serie.$id}-${factor.$id}`]) {
-        const offering = localChartState.offerings[`${serie.$id}-${factor.$id}`][0]
-        points.push([
-          (localChartState.x(factor.name) || 0) + localChartState.x.bandwidth() / 2,
-          localChartState.y[factor.name](offering.value),
-        ])
+      const offeringArr = localChartState.offerings[`${serie.$id}-${factor.$id}`]
+      if (offeringArr) {
+        const offering = offeringArr[0]
+        const yScale = localChartState.y[factor.name]
+        if (offering && yScale) {
+          points.push([
+            (localChartState.x(factor.name) || 0) + localChartState.x.bandwidth() / 2,
+            yScale(offering.value),
+          ])
+        }
       }
     })
     return line(points)
@@ -374,11 +378,13 @@ watchEffect(() => {
     .append('svg:rect')
     .attr('class', 'domain')
     .attr('y', function (factor) {
-      return localChartState.y[factor.name](1) - 25
+      const yScale = localChartState.y[factor.name]
+      return yScale ? yScale(1) - 25 : 0
     })
     .attr('width', 50)
     .attr('height', function (factor) {
-      return 50 + localChartState.y[factor.name](0) - localChartState.y[factor.name](1)
+      const yScale = localChartState.y[factor.name]
+      return yScale ? 50 + yScale(0) - yScale(1) : 50
     })
     .on('mousedown', function (event) {
       event.stopPropagation()
@@ -407,7 +413,9 @@ watchEffect(() => {
             }
             */
       const pos = d3.pointer(event)
-      const v = Math.max(0, Math.min(1, localChartState.y[factor.name].invert(pos[1])))
+      const yScale = localChartState.y[factor.name]
+      if (!yScale) return
+      const v = Math.max(0, Math.min(1, yScale.invert(pos[1])))
       // add to first empty or create new serie
       let start = chartStore.series.findIndex((s) => s.business === uiStore.selectedSerieName)
       if (start === -1) {
@@ -416,14 +424,16 @@ watchEffect(() => {
       for (let index = 0; index < chartStore.chart.series.length; index++) {
         const offsetIndex = (start + index) % chartStore.chart.series.length
         const serie = chartStore.series[offsetIndex]
-        if (!localChartState.offerings.hasOwnProperty(`${serie.$id}-${factor.$id}`)) {
+        if (serie && !localChartState.offerings.hasOwnProperty(`${serie.$id}-${factor.$id}`)) {
           chartStore.addOffering(serie, factor, v)
           return
         }
       }
       // all series have offering create new serie
       const newSerieId = chartStore.addSeries(chartStore.getUniqueBusinessName())[0]
+      if (!newSerieId) return
       const newSerie = chartStore.seriesIndex[newSerieId]
+      if (!newSerie) return
       chartStore.addOffering(newSerie, factor, v)
       uiStore.selectedSerieName = newSerie.business
     }
@@ -490,12 +500,14 @@ watchEffect(() => {
   factorContainer
     .select('.domain')
     .attr('y', function (factor) {
-      return localChartState.y[factor.name](1) - 25
+      const yScale = localChartState.y[factor.name]
+      return yScale ? yScale(1) - 25 : 0
     })
     .attr('x', (localChartState.x.bandwidth() - domainWidth) / 2)
     .attr('width', domainWidth)
     .attr('height', function (factor) {
-      return 50 + localChartState.y[factor.name](0) - localChartState.y[factor.name](1)
+      const yScale = localChartState.y[factor.name]
+      return yScale ? 50 + yScale(0) - yScale(1) : 50
     })
 
   //handle factor dragging right-left
@@ -513,9 +525,9 @@ watchEffect(() => {
         .on('start', function (this: any, factor: Factor) {
           isDraging = false
 
-          let i = localChartState.factors.indexOf(factor)
+          const i = localChartState.factors.indexOf(factor)
           //move to top visible
-          let node = d3.select(this).node()
+          const node = d3.select(this).node()
           if (node && node.parentNode) {
             node.parentNode.appendChild(node)
           }
@@ -540,7 +552,7 @@ watchEffect(() => {
             {},
           )
           currentX[factor.name] = event.x
-          localChartState.factors.sort((a, b) => currentX[a.name] - currentX[b.name])
+          localChartState.factors.sort((a, b) => (currentX[a.name] ?? 0) - (currentX[b.name] ?? 0))
           localChartState.x
             .domain(localChartState.factors.map((f) => f.name))
             .range([0, localChartState.w])
@@ -573,7 +585,7 @@ watchEffect(() => {
             .domain(localChartState.factors.map((f) => f.name))
             .range([0, localChartState.w])
           backgroundFactor.style('fill', updateBandingBackground)
-          let t = d3.transition().duration(500)
+          const t = d3.transition().duration(500)
           t.selectAll('.factor').attr('transform', function (factor: any) {
             return 'translate(' + (localChartState.x(factor.name) || 0) + ')'
           })
@@ -581,7 +593,7 @@ watchEffect(() => {
           backgroundGroup.selectAll('.backgroundFactor').attr('x', function (factor: any) {
             return localChartState.x(factor.name) || 0
           })
-          t.selectAll('.foreground .line').attr('d', path)
+          t.selectAll('.foreground .line').attr('d', (d: any) => path(d))
           t.transition().on('end', () => {
             const newFactorsOrder = localChartState.factors.map((f) => f.$id)
             if (newFactorsOrder.join('') !== chartStore.chart.factors.join('')) {
@@ -615,11 +627,12 @@ watchEffect(() => {
     .append('svg:g')
     .attr('class', 'dot')
     .attr('transform', function (point) {
+      const yScale = localChartState.y[point.factor.name]
       return (
         'matrix(0, 0, 0, 0, ' +
         localChartState.x.bandwidth() / 2 +
         ', ' +
-        localChartState.y[point.factor.name](point.offering.value) +
+        (yScale ? yScale(point.offering.value) : 0) +
         ')'
       )
     })
@@ -628,11 +641,12 @@ watchEffect(() => {
     .duration(500)
     .ease(d3.easeElastic)
     .attr('transform', function (point) {
+      const yScale = localChartState.y[point.factor.name]
       return (
         'matrix(1, 0, 0, 1, ' +
         localChartState.x.bandwidth() / 2 +
         ', ' +
-        localChartState.y[point.factor.name](point.offering.value) +
+        (yScale ? yScale(point.offering.value) : 0) +
         ')'
       )
     })
@@ -647,12 +661,14 @@ watchEffect(() => {
 
   maybeTransiton(marker.select('path'))
     .attr('d', function (point) {
-      return point.serie.symbol === 'none'
-        ? ''
-        : d3
-            .symbol()
-            .type(() => SymbolsLookup[point.serie.symbol])
-            .size(() => uiStore.markerSize * 10)()
+      if (point.serie.symbol === 'none') {
+        return ''
+      }
+      const symbolType = SymbolsLookup[point.serie.symbol]
+      if (!symbolType) {
+        return ''
+      }
+      return d3.symbol().type(symbolType).size(() => uiStore.markerSize * 10)() ?? ''
     })
     .style('fill', function (point) {
       return point.serie.color
@@ -667,13 +683,14 @@ watchEffect(() => {
       d3
         .drag<any, any>()
         .subject(function (event, point: any) {
+          const yScale = localChartState.y[point.factor.name]
           return {
-            y: localChartState.y[point.factor.name](point.offering.value),
+            y: yScale ? yScale(point.offering.value) : 0,
           }
         })
         .on('start', function (event, point: any) {
           //make dragged serie top one
-          let index =
+          const index =
             foreground
               .selectAll('.line')
               .data()
@@ -688,29 +705,39 @@ watchEffect(() => {
           event.sourceEvent.stopPropagation() //we do not localChartState.want to start drag on factor
         })
         .on('drag', function (event, point: any) {
-          let v = localChartState.y[point.factor.name].invert(event.y)
+          const yScale = localChartState.y[point.factor.name]
+          if (!yScale) return
+          const v = yScale.invert(event.y)
           if (v < -0.05 && v >= -0.1) {
             point.serie.offerings[point.factor.name] = v
             d3.select(this)
               .attr('transform', function (d: any) {
+                const dyScale = localChartState.y[d.factor.name]
                 return (
                   'matrix(1, 0, 0, 1,' +
                   localChartState.x.bandwidth() / 2 +
                   ',' +
-                  localChartState.y[d.factor.name](d.offering.value) +
+                  (dyScale ? dyScale(d.offering.value) : 0) +
                   ')'
                 )
               })
               .select('path')
               .attr('d', function (d: any) {
-                return d.serie.symbol === 'none'
-                  ? ''
-                  : d3
-                      .symbol()
-                      .type(SymbolsLookup[d.serie.symbol])
-                      .size(function () {
-                        return (uiStore.markerSize * 10 * (0.15 + v)) / 0.1
-                      })()
+                if (d.serie.symbol === 'none') {
+                  return ''
+                }
+                const symbolType = SymbolsLookup[d.serie.symbol]
+                if (!symbolType) {
+                  return ''
+                }
+                return (
+                  d3
+                    .symbol()
+                    .type(symbolType)
+                    .size(function () {
+                      return (uiStore.markerSize * 10 * (0.15 + v)) / 0.1
+                    })() ?? ''
+                )
               })
           } else if (v < -0.1) {
             point.offering.value = -1
@@ -720,23 +747,31 @@ watchEffect(() => {
               })
               .select('path')
               .attr('d', function (d: any) {
-                return d.serie.symbol === 'none'
-                  ? ''
-                  : d3
-                      .symbol()
-                      .type(SymbolsLookup[d.serie.symbol])
-                      .size(function () {
-                        return 0
-                      })()
+                if (d.serie.symbol === 'none') {
+                  return ''
+                }
+                const symbolType = SymbolsLookup[d.serie.symbol]
+                if (!symbolType) {
+                  return ''
+                }
+                return (
+                  d3
+                    .symbol()
+                    .type(symbolType)
+                    .size(function () {
+                      return 0
+                    })() ?? ''
+                )
               })
           } else {
             point.offering.value = Math.max(0, Math.min(1, v))
             d3.select(this).attr('transform', function (point: any) {
+              const pyScale = localChartState.y[point.factor.name]
               return (
                 'matrix(1, 0, 0, 1,' +
                 localChartState.x.bandwidth() / 2 +
                 ',' +
-                localChartState.y[point.factor.name](point.offering.value) +
+                (pyScale ? pyScale(point.offering.value) : 0) +
                 ')'
               )
             })
@@ -756,11 +791,12 @@ watchEffect(() => {
   }
 
   maybeTransiton(marker).attr('transform', function (point) {
+    const yScale = localChartState.y[point.factor.name]
     return (
       'matrix(1, 0, 0, 1, ' +
       localChartState.x.bandwidth() / 2 +
       ', ' +
-      localChartState.y[point.factor.name](point.offering.value) +
+      (yScale ? yScale(point.offering.value) : 0) +
       ')'
     )
   })

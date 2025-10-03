@@ -46,6 +46,6 @@ const items = computed(() => {
   items.sort((a: any, b: any) => {
     return a[props.fieldName].localeCompare(b[props.fieldName])
   })
-  return items
+  return items as any[]
 })
 </script>

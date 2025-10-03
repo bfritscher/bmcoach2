@@ -151,7 +151,10 @@ watchEffect(() => {
     (!uiStore.selectedSerieName || chartStore.businessNotInUse(uiStore.selectedSerieName)) &&
     chartStore.chart.series.length > 0
   ) {
-    uiStore.selectedSerieName = chartStore.series[0].business
+    const firstSerie = chartStore.series[0]
+    if (firstSerie) {
+      uiStore.selectedSerieName = firstSerie.business
+    }
   }
 })
 
@@ -193,7 +196,9 @@ function showRemoveSerieDialog(serie: Serie) {
 function sort() {
   const serie = chartStore.getSerieByBusiness(uiStore.selectedSerieName || '')
   if (serie) {
-    let sortedFactors = chartStore.offerings[serie.$id]
+    const offerings = chartStore.offerings[serie.$id]
+    if (!offerings) return
+    let sortedFactors = offerings
       .sort((a, b) => {
         const av = a.value
         const bv = b.value

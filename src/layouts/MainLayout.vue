@@ -55,10 +55,10 @@
     </q-header>
 
     <q-drawer
-      :model-value="route.meta?.leftDrawer && uiStore.leftDrawerOpen"
+      :model-value="!!(route.meta?.leftDrawer && uiStore.leftDrawerOpen)"
       side="left"
       bordered
-      :show-if-above="route.meta?.leftDrawer"
+      :show-if-above="!!route.meta?.leftDrawer"
       @update:model-value="uiStore.leftDrawerOpen = $event"
     >
       <router-view name="leftDrawer"></router-view>

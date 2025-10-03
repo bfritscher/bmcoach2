@@ -52,14 +52,14 @@ export const useChartStore = defineStore('chart', () => {
     return itemsStore.typeIndex[TYPE_SC_OFFERING]
       ? (Object.values(itemsStore.typeIndex[TYPE_SC_OFFERING]) as Offering[]).reduce(
           (agg: { [key: string]: Offering[] }, offering: Offering) => {
-            if (!agg.hasOwnProperty(offering.serieId)) {
+            if (!agg[offering.serieId]) {
               agg[offering.serieId] = []
             }
-            if (!agg.hasOwnProperty(offering.factorId)) {
+            if (!agg[offering.factorId]) {
               agg[offering.factorId] = []
             }
-            agg[offering.serieId].push(offering)
-            agg[offering.factorId].push(offering)
+            agg[offering.serieId]!.push(offering)
+            agg[offering.factorId]!.push(offering)
             agg[`${offering.serieId}-${offering.factorId}`] = [offering]
             return agg
           },
@@ -154,14 +154,14 @@ export const useChartStore = defineStore('chart', () => {
   }
 
   function getUnusedSerie(business?: string): Serie {
-    return Object.assign(
-      {
-        $id: uuid(),
-        offerings: [],
-        business: business || getUniqueBusinessName(),
-      },
-      getUnusedMarker(),
-    )
+    const marker = getUnusedMarker()
+    return {
+      $id: uuid(),
+      business: business || getUniqueBusinessName(),
+      color: marker.color ?? colors[0] ?? '#000000',
+      symbol: marker.symbol ?? symbols[0] ?? 'circle',
+      dash: marker.dash,
+    }
   }
 
   function addSeries(names: string): string[] {
@@ -171,7 +171,6 @@ export const useChartStore = defineStore('chart', () => {
       if (business !== '' && businessNotInUse(business)) {
         const serie = Object.assign(
           {
-            offerings: [],
             business,
           },
           getUnusedMarker(),
@@ -276,9 +275,10 @@ export const useChartStore = defineStore('chart', () => {
       table[j + 1] = [`"${factor.name}"`]
       series.value.forEach((serie: Serie) => {
         if (j === 0) {
-          table[0].push(`"${serie.business}"`)
+          table[0]!.push(`"${serie.business}"`)
         }
-        table[j + 1].push(offerings.value[`${serie.$id}-${factor.$id}`][0].value)
+        const offering = offerings.value[`${serie.$id}-${factor.$id}`]?.[0]
+        table[j + 1]!.push(offering?.value ?? 0)
       })
     })
     const csv = table
