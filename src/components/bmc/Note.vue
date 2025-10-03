@@ -134,160 +134,491 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, getCurrentInstance } from 'vue'
 import debounce from 'lodash.debounce'
 import isEqual from 'lodash.isequal'
 import interact from 'interactjs'
 import Note from '@/models/Note'
 import ColorSelector from '@/components/bmc/ColorSelector.vue'
-import { mapState, mapActions } from 'pinia'
+import { storeToRefs } from 'pinia'
 import { VPC_VP_TYPES, VPC_CS_TYPES, VPC_TYPES } from '@/stores/bmc-store'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useBMCStore } from '@/stores/bmc-store'
 import { useStorageStore } from '@/stores/storage'
 import { COLORS_MATERIAL_DARK, COLORS_MATERIAL_HEX } from '@/utils/constants'
 import { humanformat } from '@/utils/filters'
+import type { BMCNote } from '@/components/models'
 
 const MIN_FONT_SIZE = 10
 let MAX_FONT_SIZE = 24
 const MIN_HEIGHT = 5
 const MAX_HEIGHT = 20
 
-export default {
-  name: 'CanvasNote',
-  components: {
-    ColorSelector,
-  },
-  props: ['value', 'parent', 'focus'],
-  data() {
-    return {
-      x: 0,
-      y: 0,
-      dx: 0,
-      height: MIN_HEIGHT,
-      dragging: false,
-      dragStartType: '',
-      fontSize: MAX_FONT_SIZE,
-      colorList: COLORS_MATERIAL_DARK,
-      colorsBG: COLORS_MATERIAL_HEX,
-      opacity: 1,
-      boxShadow: '',
-      focused: false,
+const props = defineProps<{
+  value: BMCNote
+  parent: HTMLElement
+  focus?: boolean
+}>()
+
+const instance = getCurrentInstance()
+
+const bmcUiStore = useBmcUIStore()
+const { layout } = storeToRefs(bmcUiStore)
+
+const bmcStore = useBMCStore()
+const { canvasSettings, calcResults } = storeToRefs(bmcStore)
+const {
+  getNotesByTypes,
+  noteMoveToTop,
+  noteUpdate,
+  noteMoveLocal,
+  noteDelete,
+  noteCreate,
+  canvasUserSettingsUpdate,
+} = bmcStore
+
+const storageStore = useStorageStore()
+const { getFileUrl } = storageStore
+
+const colorsBG = COLORS_MATERIAL_HEX
+const colorList = COLORS_MATERIAL_DARK
+
+const x = ref(0)
+const y = ref(0)
+const dx = ref(0)
+const height = ref(MIN_HEIGHT)
+const dragging = ref(false)
+const dragStartType = ref('')
+const fontSize = ref(MAX_FONT_SIZE)
+const opacity = ref(1)
+const boxShadow = ref('')
+const focused = ref(false)
+const textarea = ref<HTMLTextAreaElement>()
+
+let debouncedCalculateFontSizeAndHeight: ReturnType<typeof debounce> | null = null
+
+const nbChilds = computed(() => {
+  return (props.value.children && props.value.children.length) || ''
+})
+
+const colorsVisibility = computed(() => canvasSettings.value.colorsVisibility)
+const listMode = computed(() => canvasSettings.value.listMode)
+const hideColors = computed(() => canvasSettings.value.hideColors)
+const colors = computed(() => props.value.colors)
+const color = computed(() => props.value.colors[0] || 0)
+const direction = computed(() => (props.value.top > 70 ? 'up' : 'down'))
+
+const isEdit = computed(() => {
+  if (layout.value.focusedNoteId && props.value && layout.value.focusedNoteId === props.value.$id) {
+    if (!focused.value) {
+      nextTick(() => {
+        textarea.value?.focus()
+        focused.value = true
+      })
     }
-  },
-  computed: {
-    ...mapState(useBmcUIStore, ['layout']),
-    ...mapState(useBMCStore, ['canvasSettings', 'calcResults']),
-    nbChilds() {
-      return (this.value.children && this.value.children.length) || ''
-    },
-    colorsVisibility() {
-      return this.canvasSettings.colorsVisibility
-    },
-    listMode() {
-      return this.canvasSettings.listMode
-    },
-    hideColors() {
-      return this.canvasSettings.hideColors
-    },
-    colors() {
-      return this.value.colors
-    },
-    color() {
-      return this.value.colors[0]
-    },
-    direction() {
-      return this.value.top > 70 ? 'up' : 'down'
-    },
-    isEdit() {
-      if (this.layout.focusedNoteId && this.value && this.layout.focusedNoteId === this.value.$id) {
-        if (!this.focused) {
-          //eslint-disable-next-line
-          this.$nextTick(() => {
-            this.$refs.textarea.focus()
-            //eslint-disable-next-line
-            this.focused = true
-          })
+    return true
+  }
+  focused.value = false
+  return false
+})
+
+const left = computed(() => (listMode.value ? props.value.listLeft : props.value.left))
+const top = computed(() => (listMode.value ? props.value.listTop : props.value.top))
+const angle = computed(() => (listMode.value ? 0 : props.value.angle))
+
+const highlight = computed(() => {
+  if (!instance?.proxy?.$route) return false
+  return [instance.proxy.$route.query.zoom1, instance.proxy.$route.query.zoom2].indexOf(props.value.$id) > -1
+})
+
+const transform = computed(() => {
+  if (dragging.value) {
+    return `rotateZ(${
+      angle.value - (dx.value > 0 ? Math.min(dx.value, 8) : Math.max(dx.value, -8))
+    }deg)`
+  }
+  return `rotateZ(${angle.value}deg)`
+})
+
+const showAsSticky = computed(() => props.value.showAsSticky)
+
+function setOpacity() {
+  if (layout.value.presentation && props.value.hidden) {
+    opacity.value = 0
+  } else {
+    // calculate visibility based on colors
+    opacity.value = colorsVisibility.value.reduce((totalOpacity: number, opacityVal: number, colorId: number) => {
+      if (props.value.colors.includes(colorId)) {
+        totalOpacity += opacityVal
+      }
+      return Math.min(totalOpacity, 1)
+    }, 0)
+  }
+}
+
+function setBoxShadow() {
+  boxShadow.value = props.value.colors
+    .reduce((shadows: string[], colorCode: number, i: number) => {
+      if (hideColors.value) {
+        return shadows
+      } else if (listMode.value || !props.value.showAsSticky) {
+        const size = (i + 1) * 5 + i * 2
+        shadows.push(`-${size}px 0px ${COLORS_MATERIAL_HEX[colorCode]}`)
+        shadows.push(`-${size + 2}px 0px ${dragging.value ? 'transparent' : '#fff'}`)
+      } else if (i === 0) {
+        shadows.push('0px 1px 2px rgba(0, 0, 0, 0.3)')
+      } else {
+        const size = i * 5 + 1
+        shadows.push(`-${size}px -${size}px ${COLORS_MATERIAL_HEX[colorCode]}`)
+      }
+      return shadows
+    }, [])
+    .join(',')
+}
+
+function showNoteOptions(showNoteOptionsCalc?: boolean) {
+  layout.value.showNoteOptions = true
+  layout.value.focusedNoteId = props.value.$id
+  layout.value.showNoteOptionsCalc = Boolean(showNoteOptionsCalc)
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  const allowEdit = layout.value.isEditable && !(props.value as any).isGame
+  if (!allowEdit) {
+    e.preventDefault()
+  }
+  return allowEdit
+}
+
+function handleKeyUp(e: KeyboardEvent) {
+  if ([35, 36, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+    return
+  }
+  if (e.keyCode === 13 && e.ctrlKey) {
+    if (!instance?.proxy?.$el || !props.parent) return
+    const leftVal = (instance.proxy.$el.offsetLeft / instance.proxy.$el.parentElement.offsetWidth) * 100
+    const topVal =
+      ((instance.proxy.$el.offsetTop + instance.proxy.$el.offsetHeight + 20) / props.parent.offsetHeight) * 100
+    noteCreate({
+      type: props.value.type,
+      left: leftVal,
+      top: topVal,
+      listLeft: leftVal,
+      listTop: topVal,
+    })
+    return
+  }
+  if (e.keyCode === 27) {
+    if (props.value.text === '') {
+      removeIfEmpty()
+      return
+    }
+  }
+  debouncedCalculateFontSizeAndHeight?.()
+}
+
+function moveToTop() {
+  noteMoveToTop(props.value.$id)
+}
+
+function handleFocus() {
+  layout.value.focusedNoteId = props.value.$id
+  moveToTop()
+}
+
+function handleWheel(e: WheelEvent) {
+  if (!listMode.value) {
+    const delta = (e.deltaY - (e.deltaY % 100)) / 50
+    noteUpdate({
+      note: props.value,
+      changes: {
+        angle: props.value.angle + delta,
+      },
+    })
+  }
+}
+
+function removeIfEmpty() {
+  if (props.value.text === '' && props.value.image === '') {
+    noteDelete(props.value)
+  }
+}
+
+function sortSortable(type: string, options?: any) {
+  let zoneTop = 0
+  let zoneLeft = -10 // for tmp outside of paper
+  let zoneHeight = 100
+  let zoneWidth = 100
+  const offsetLeft = 1
+  const offsetTop = 5
+  const marginLeft = 1
+  const marginTop = 1
+  const zone = document.getElementById(type)
+
+  if (zone) {
+    zoneTop = parseFloat(zone.style.top)
+    zoneLeft = parseFloat(zone.style.left)
+    zoneHeight = parseFloat(zone.style.height)
+    zoneWidth = parseFloat(zone.style.width)
+    if (type === 'solution') {
+      zoneWidth = 20
+      zoneLeft = 20
+    }
+    if (type === 'pain_gain') {
+      zoneWidth = 20
+      zoneLeft = 60
+    }
+    if (type === 'job') {
+      zoneWidth = 20
+      zoneLeft = 80
+    }
+  }
+  let ordered = getNotesByTypes(type)
+  if (VPC_TYPES.includes(type)) {
+    ordered = ordered.filter((note: any) => {
+      let matched = false
+      if (layout.value.selectedVP) {
+        matched = note.parent === layout.value.selectedVP.$id
+      }
+      if (!matched && layout.value.selectedCS) {
+        matched = note.parent === layout.value.selectedCS.$id
+      }
+      return matched
+    })
+  }
+
+  ordered.sort((a: any, b: any) => {
+    if (a.listLeft - b.listLeft > 10) {
+      return 1
+    }
+    if (b.listLeft - a.listLeft > 10) {
+      return -1
+    }
+    return a.listTop - b.listTop
+  })
+
+  let topPos = zoneTop + offsetTop
+  let leftPos = zoneLeft + offsetLeft
+  ordered.forEach((note: any) => {
+    if (topPos + note.height > zoneTop + zoneHeight) {
+      topPos = zoneTop + offsetTop
+      leftPos += zoneWidth / 2.0 + marginLeft
+    }
+
+    // only dispatch for notes not in the exclude list
+    if (!(options && options.exclude && options.exclude.$id === note.$id)) {
+      if (options && options.save) {
+        noteUpdate({
+          note,
+          changes: {
+            listTop: topPos,
+            listLeft: leftPos,
+          },
+        })
+      } else {
+        noteMoveLocal({
+          note,
+          listTop: topPos,
+          listLeft: leftPos,
+        })
+      }
+    }
+    topPos += note.height + marginTop
+  })
+}
+
+function createDebouncedCalculateFontSizeAndHeight() {
+  return debounce(calculateFontSizeAndHeight, 300, {
+    leading: true,
+  })
+}
+
+function calculateFontSizeAndHeight(previous?: any[]) {
+  if (!textarea.value || !instance?.proxy?.$el) {
+    return
+  }
+  // TODO: cache it
+  MAX_FONT_SIZE = instance.proxy.$el.parentNode.parentNode.offsetHeight * 0.03
+  if (!Array.isArray(previous)) {
+    previous = []
+    fontSize.value = Math.min(fontSize.value, MAX_FONT_SIZE)
+  }
+  previous.unshift({
+    height: height.value,
+    fontSize: fontSize.value,
+  })
+
+  let minedOutFont = false
+  let maxedOutFont = false
+  let minedOutHeight = false
+  let maxedOutHeight = false
+  let fontChanged = false
+
+  if (textarea.value.scrollWidth > textarea.value.offsetWidth) {
+    if (fontSize.value > MIN_FONT_SIZE) {
+      fontSize.value -= 1
+      fontChanged = true
+    } else {
+      minedOutFont = true
+    }
+  }
+
+  if (textarea.value.scrollHeight > textarea.value.offsetHeight) {
+    if (height.value < MAX_HEIGHT) {
+      height.value += 0.5
+    } else {
+      maxedOutHeight = true
+      if (!fontChanged) {
+        if (fontSize.value > MIN_FONT_SIZE) {
+          fontSize.value -= 1
+          fontChanged = true
+        } else {
+          minedOutFont = true
         }
-        return true
       }
-      //eslint-disable-next-line
-      this.focused = false
-      return false
-    },
-    left() {
-      return this.listMode ? this.value.listLeft : this.value.left
-    },
-    top() {
-      return this.listMode ? this.value.listTop : this.value.top
-    },
-    angle() {
-      return this.listMode ? 0 : this.value.angle
-    },
-    highlight() {
-      return [this.$route.query.zoom1, this.$route.query.zoom2].indexOf(this.value.$id) > -1
-    },
-    transform() {
-      if (this.dragging) {
-        return `rotateZ(${
-          this.angle - (this.dx > 0 ? Math.min(this.dx, 8) : Math.max(this.dx, -8))
-        }deg)`
+    }
+  }
+
+  if (textarea.value.scrollWidth <= textarea.value.offsetWidth && !fontChanged) {
+    if (fontSize.value < MAX_FONT_SIZE) {
+      fontSize.value += 1
+      fontChanged = true
+    } else {
+      maxedOutFont = true
+    }
+  }
+
+  if (
+    textarea.value.scrollHeight <= textarea.value.offsetHeight &&
+    (!fontChanged || minedOutFont)
+  ) {
+    if (fontSize.value < MAX_FONT_SIZE && !minedOutFont) {
+      fontSize.value += 1
+    } else {
+      maxedOutFont = true
+      if (height.value > MIN_HEIGHT) {
+        height.value -= 0.5
+      } else {
+        minedOutHeight = true
       }
-      return `rotateZ(${this.angle}deg)`
-    },
-    showAsSticky() {
-      return this.value.showAsSticky
-    },
-  },
-  watch: {
-    isEdit(val) {
-      if (!val) {
-        this.removeIfEmpty()
-        this.sortSortable(this.value.type)
-      }
-    },
-    colors(after, before) {
-      // TODO: deprecated require('node:util').isDeepStrictEqual
-      if (!isEqual(after, before)) {
-        this.setOpacity()
-        this.setBoxShadow()
-      }
-    },
-    colorsVisibility(after, before) {
-      if (!isEqual(after, before)) {
-        this.setOpacity()
-      }
-    },
-    showAsSticky(after, before) {
-      if (after !== before) {
-        this.setBoxShadow()
-      }
-    },
-    listMode(after, before) {
-      if (after !== before) {
-        this.setBoxShadow()
-      }
-    },
-    hideColors(after, before) {
-      if (after !== before) {
-        this.setBoxShadow()
-      }
-    },
-    'value.hidden': function valueHidden(after, before) {
-      if (after !== before) {
-        this.setOpacity()
-      }
-    },
-    'layout.presentation': function layoutPresentation(after, before) {
-      if (after !== before) {
-        this.setOpacity()
-      }
-    },
-  },
-  mounted() {
-    this.debouncedCalculateFontSizeAndHeight = this.createDebouncedCalculateFontSizeAndHeight()
-    window.addEventListener('resize', this.debouncedCalculateFontSizeAndHeight)
-    interact(this.$el)
+    }
+  }
+  // store height to compute list mode positions
+  noteMoveLocal({ note: props.value, height: height.value })
+
+  // loop if not min/maxed or in stable state.
+  let twoAgo
+  if (previous.length > 1) {
+    twoAgo = previous.pop()
+  }
+  if (
+    !((maxedOutHeight && minedOutFont) || (minedOutHeight && maxedOutFont)) &&
+    (!twoAgo || !(twoAgo.height === height.value && twoAgo.fontSize === fontSize.value))
+  ) {
+    nextTick(() => {
+      calculateFontSizeAndHeight(previous)
+    })
+  } else {
+    // done
+    noteUpdate({
+      changes: { height: height.value },
+      note: props.value,
+    })
+
+    if (listMode.value) {
+      sortSortable(props.value.type, { save: true })
+    }
+  }
+}
+
+function setColor(position: number, colorId: number) {
+  const newColors = Note.changeColor(props.value.colors, position, colorId)
+  noteUpdate({
+    changes: { colors: newColors },
+    note: props.value,
+  })
+  canvasUserSettingsUpdate({
+    lastUsedColors: newColors,
+  })
+}
+
+function zoom() {
+  layout.value[`selected${props.value.type.toUpperCase()}`] = props.value
+}
+
+function updateText(e: Event) {
+  const target = e.target as HTMLTextAreaElement
+  noteUpdate({
+    changes: { text: target.value },
+    note: props.value,
+  })
+}
+
+// Watchers
+watch(isEdit, (val) => {
+  if (!val) {
+    removeIfEmpty()
+    sortSortable(props.value.type)
+  }
+})
+
+watch(colors, (after, before) => {
+  if (!isEqual(after, before)) {
+    setOpacity()
+    setBoxShadow()
+  }
+})
+
+watch(colorsVisibility, (after, before) => {
+  if (!isEqual(after, before)) {
+    setOpacity()
+  }
+})
+
+watch(showAsSticky, (after, before) => {
+  if (after !== before) {
+    setBoxShadow()
+  }
+})
+
+watch(listMode, (after, before) => {
+  if (after !== before) {
+    setBoxShadow()
+  }
+})
+
+watch(hideColors, (after, before) => {
+  if (after !== before) {
+    setBoxShadow()
+  }
+})
+
+watch(
+  () => props.value.hidden,
+  (after, before) => {
+    if (after !== before) {
+      setOpacity()
+    }
+  }
+)
+
+watch(
+  () => layout.value.presentation,
+  (after, before) => {
+    if (after !== before) {
+      setOpacity()
+    }
+  }
+)
+
+onMounted(() => {
+  debouncedCalculateFontSizeAndHeight = createDebouncedCalculateFontSizeAndHeight()
+  window.addEventListener('resize', debouncedCalculateFontSizeAndHeight)
+  
+  if (instance?.proxy?.$el) {
+    const el = instance.proxy.$el
+    ;(interact(el as any) as any)
       .draggable({
         inertia: true,
         restrict: {
@@ -297,452 +628,108 @@ export default {
         },
         autoScroll: true,
         onstart: () => {
-          this.dragStartType = this.value.type
-          this.dragging = true
-          this.x = this.$el.offsetLeft
-          this.y = this.$el.offsetTop
-          this.moveToTop()
+          dragStartType.value = props.value.type
+          dragging.value = true
+          x.value = el.offsetLeft
+          y.value = el.offsetTop
+          moveToTop()
         },
-        onmove: (event) => {
-          this.x += event.dx
-          this.y += event.dy
-          this.dx = event.dx
-          const left = (parseFloat(this.x) / this.parent.offsetWidth) * 100
-          const top = (parseFloat(this.y) / this.parent.offsetHeight) * 100
+        onmove: (event: any) => {
+          x.value += event.dx
+          y.value += event.dy
+          dx.value = event.dx
+          const leftVal = (parseFloat(String(x.value)) / props.parent.offsetWidth) * 100
+          const topVal = (parseFloat(String(y.value)) / props.parent.offsetHeight) * 100
 
           let type = ''
           if (event.dropzone && event.dropzone.target) {
             type = event.dropzone.target.getAttribute('id')
           } else {
-            type = this.parent.getAttribute('data-none')
+            type = props.parent.getAttribute('data-none') || ''
           }
-          if (this.listMode) {
-            this.noteMoveLocal({
-              note: this.value,
-              listLeft: left,
-              listTop: top,
+          if (listMode.value) {
+            noteMoveLocal({
+              note: props.value,
+              listLeft: leftVal,
+              listTop: topVal,
               type,
             })
           } else {
-            this.noteMoveLocal({
-              note: this.value,
-              left,
-              top,
+            noteMoveLocal({
+              note: props.value,
+              left: leftVal,
+              top: topVal,
               type,
             })
           }
 
-          this.sortSortable(type, {
-            exclude: this.value,
+          sortSortable(type, {
+            exclude: props.value,
           })
         },
-        onend: (event) => {
-          this.dragging = false
+        onend: (event: any) => {
+          dragging.value = false
           let newtype = ''
           if (event.relatedTarget) {
             newtype = event.relatedTarget.getAttribute('id')
           } else {
-            newtype = this.parent.getAttribute('data-none')
+            newtype = props.parent.getAttribute('data-none') || ''
           }
 
-          const payload = {
-            note: this.value,
+          const payload: any = {
+            note: props.value,
             changes: {
               type: newtype,
-              left: this.left,
-              top: this.top,
             },
           }
-          // TODO: refactor make note note dependent almost same as in VPC
-          // ignore tmp which is at position 0
-          if (this.layout.selectedVP && VPC_VP_TYPES.indexOf(newtype) > 0) {
-            payload.changes.parent = this.layout.selectedVP.$id
+          if (listMode.value) {
+            payload.changes.listLeft = props.value.listLeft
+            payload.changes.listTop = props.value.listTop
+          } else {
+            payload.changes.left = props.value.left
+            payload.changes.top = props.value.top
           }
-          if (this.layout.selectedCS && VPC_CS_TYPES.indexOf(newtype) > 0) {
-            payload.changes.parent = this.layout.selectedCS.$id
-          }
-          if (this.layout.isEditable) {
-            this.noteUpdate(payload)
-          }
-
-          // update list modes
-          this.sortSortable(newtype, { save: true })
-
-          if (this.dragStartType !== newtype) {
-            this.sortSortable(this.dragStartType, { save: true })
-          }
-
-          // update free mode
-          if (this.listMode) {
-            if (this.value.left === 0 && this.value.top === 0) {
-              // never been positionned in free mode take list position
-              this.noteUpdate({
-                note: this.value,
-                changes: {
-                  left: this.value.listLeft,
-                  top: this.value.listTop,
-                },
-              })
-            } else if (this.dragStartType !== newtype) {
-              // ratio if zone changed
-              const start = document.getElementById(this.dragStartType)
-              const end = document.getElementById(newtype)
-              if (start && end) {
-                const left =
-                  ((this.value.left - parseFloat(start.style.left)) /
-                    parseFloat(start.style.width)) *
-                    parseFloat(end.style.width) +
-                  parseFloat(end.style.left)
-
-                const top =
-                  ((this.value.top - parseFloat(start.style.top)) /
-                    parseFloat(start.style.height)) *
-                    parseFloat(end.style.height) +
-                  parseFloat(end.style.top)
-                this.noteUpdate({
-                  note: this.value,
-                  changes: {
-                    left,
-                    top,
-                  },
-                })
-              }
-            }
-          }
+          noteUpdate(payload)
+          sortSortable(newtype, { save: true })
         },
       })
+      .on('doubletap', () => {
+        noteUpdate({
+          note: props.value,
+          changes: {
+            showAsSticky: !props.value.showAsSticky,
+          },
+        })
+      })
       .gesturable({
-        onmove: (event) => {
-          const angle = this.value.angle || 0
-          this.noteUpdate({
-            note: this.value,
+        onmove: (event: any) => {
+          noteUpdate({
+            note: props.value,
             changes: {
-              angle: angle + event.da,
+              angle: props.value.angle + event.da,
             },
           })
         },
       })
+  }
 
-    this.setBoxShadow()
-    this.setOpacity()
-    this.$nextTick(() => {
-      setTimeout(this.calculateFontSizeAndHeight, 500)
-    })
-  },
+  setBoxShadow()
+  setOpacity()
+  nextTick(() => {
+    setTimeout(calculateFontSizeAndHeight, 500)
+  })
+})
 
-  beforeUnmount() {
-    window.removeEventListener('resize', this.debouncedCalculateFontSizeAndHeight)
-  },
+onBeforeUnmount(() => {
+  if (debouncedCalculateFontSizeAndHeight) {
+    window.removeEventListener('resize', debouncedCalculateFontSizeAndHeight)
+  }
+})
 
-  methods: {
-    ...mapActions(useBMCStore, [
-      'getNotesByTypes',
-      'noteMoveToTop',
-      'noteUpdate',
-      'noteMoveLocal',
-      'noteDelete',
-      'noteCreate',
-      'canvasUserSettingsUpdate',
-    ]),
-    ...mapActions(useStorageStore, ['getFileUrl']),
-    setOpacity() {
-      if (this.layout.presentation && this.value.hidden) {
-        this.opacity = 0
-      } else {
-        // calculate visibility based on colors
-        this.opacity = this.colorsVisibility.reduce((totalOpacity, opacity, colorId) => {
-          if (this.value.colors.includes(colorId)) {
-            totalOpacity += opacity
-          }
-          return Math.min(totalOpacity, 1)
-        }, 0)
-      }
-    },
-    setBoxShadow() {
-      this.boxShadow = this.value.colors
-        .reduce((shadows, colorCode, i) => {
-          if (this.hideColors) {
-            return shadows
-          } else if (this.listMode || !this.value.showAsSticky) {
-            const size = (i + 1) * 5 + i * 2
-            shadows.push(`-${size}px 0px ${COLORS_MATERIAL_HEX[colorCode]}`)
-            shadows.push(`-${size + 2}px 0px ${this.dragging ? 'transparent' : '#fff'}`)
-          } else if (i === 0) {
-            shadows.push('0px 1px 2px rgba(0, 0, 0, 0.3)')
-          } else {
-            const size = i * 5 + 1
-            shadows.push(`-${size}px -${size}px ${COLORS_MATERIAL_HEX[colorCode]}`)
-          }
-          return shadows
-        }, [])
-        .join(',')
-    },
-    showNoteOptions(showNoteOptionsCalc) {
-      this.layout.showNoteOptions = true
-      this.layout.focusedNoteId = this.value.$id
-      this.layout.showNoteOptionsCalc = Boolean(showNoteOptionsCalc)
-    },
-    handleKeyDown(e) {
-      const allowEdit = this.layout.isEditable && !this.value.isGame
-      if (!allowEdit) {
-        e.preventDefault()
-      }
-      return allowEdit
-    },
-    handleKeyUp(e) {
-      if ([35, 36, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
-        return
-      }
-      if (e.keyCode === 13 && e.ctrlKey) {
-        const left = (this.$el.offsetLeft / this.$el.parentElement.offsetWidth) * 100
-        const top =
-          ((this.$el.offsetTop + this.$el.offsetHeight + 20) / this.parent.offsetHeight) * 100
-        this.noteCreate({
-          type: this.value.type,
-          left,
-          top,
-          listLeft: left,
-          listTop: top,
-        })
-        return
-      }
-      if (e.keyCode === 27) {
-        if (this.value.text === '') {
-          this.removeIfEmpty()
-          return
-        }
-      }
-      this.debouncedCalculateFontSizeAndHeight()
-    },
-    moveToTop() {
-      this.noteMoveToTop(this.value.$id)
-    },
-    handleFocus() {
-      this.layout.focusedNoteId = this.value.$id
-      this.moveToTop()
-    },
-    handleWheel(e) {
-      if (!this.listMode) {
-        const delta = (e.deltaY - (e.deltaY % 100)) / 50
-        this.noteUpdate({
-          note: this.value,
-          changes: {
-            angle: this.value.angle + delta,
-          },
-        })
-      }
-    },
-    removeIfEmpty() {
-      if (this.value.text === '' && this.value.image === '') {
-        this.noteDelete(this.value)
-      }
-    }, // TODO move?
-    sortSortable(type, options) {
-      let zoneTop = 0
-      let zoneLeft = -10 // for tmp outside of paper
-      let zoneHeight = 100
-      let zoneWidth = 100
-      const offsetLeft = 1
-      const offsetTop = 5
-      const marginLeft = 1
-      const marginTop = 1
-      const zone = document.getElementById(type)
-
-      if (zone) {
-        zoneTop = parseFloat(zone.style.top)
-        zoneLeft = parseFloat(zone.style.left)
-        zoneHeight = parseFloat(zone.style.height)
-        zoneWidth = parseFloat(zone.style.width)
-        if (type === 'solution') {
-          zoneWidth = 20
-          zoneLeft = 20
-        }
-        if (type === 'pain_gain') {
-          zoneWidth = 20
-          zoneLeft = 60
-        }
-        if (type === 'job') {
-          zoneWidth = 20
-          zoneLeft = 80
-        }
-      }
-      let ordered = this.getNotesByTypes(type)
-      if (VPC_TYPES.includes(type)) {
-        ordered = ordered.filter((note) => {
-          let matched = false
-          if (this.layout.selectedVP) {
-            matched = note.parent === this.layout.selectedVP.$id
-          }
-          if (!matched && this.layout.selectedCS) {
-            matched = note.parent === this.layout.selectedCS.$id
-          }
-          return matched
-        })
-      }
-
-      ordered.sort((a, b) => {
-        if (a.listLeft - b.listLeft > 10) {
-          return 1
-        }
-        if (b.listLeft - a.listLeft > 10) {
-          return -1
-        }
-        return a.listTop - b.listTop
-      })
-
-      let top = zoneTop + offsetTop
-      let left = zoneLeft + offsetLeft
-      ordered.forEach((note) => {
-        if (top + note.height > zoneTop + zoneHeight) {
-          top = zoneTop + offsetTop
-          left += zoneWidth / 2.0 + marginLeft
-        }
-
-        // only dispatch for notes not in the exclude list
-        if (!(options && options.exclude && options.exclude.$id === note.$id)) {
-          if (options && options.save) {
-            this.noteUpdate({
-              note,
-              changes: {
-                listTop: top,
-                listLeft: left,
-              },
-            })
-          } else {
-            this.noteMoveLocal({
-              note,
-              listTop: top,
-              listLeft: left,
-            })
-          }
-        }
-        top += note.height + marginTop
-      })
-    },
-    createDebouncedCalculateFontSizeAndHeight() {
-      return debounce(this.calculateFontSizeAndHeight, 300, {
-        leading: true,
-      })
-    },
-    calculateFontSizeAndHeight(previous) {
-      if (!this.$refs.textarea) {
-        return
-      }
-      // TODO: cache it
-      MAX_FONT_SIZE = this.$el.parentNode.parentNode.offsetHeight * 0.03
-      if (!Array.isArray(previous)) {
-        previous = []
-        this.fontSize = Math.min(this.fontSize, MAX_FONT_SIZE)
-      }
-      previous.unshift({
-        height: this.height,
-        fontSize: this.fontSize,
-      })
-
-      let minedOutFont = false
-      let maxedOutFont = false
-      let minedOutHeight = false
-      let maxedOutHeight = false
-      let fontChanged = false
-
-      if (this.$refs.textarea.scrollWidth > this.$refs.textarea.offsetWidth) {
-        if (this.fontSize > MIN_FONT_SIZE) {
-          this.fontSize -= 1
-          fontChanged = true
-        } else {
-          minedOutFont = true
-        }
-      }
-
-      if (this.$refs.textarea.scrollHeight > this.$refs.textarea.offsetHeight) {
-        if (this.height < MAX_HEIGHT) {
-          this.height += 0.5
-        } else {
-          maxedOutHeight = true
-          if (!fontChanged) {
-            if (this.fontSize > MIN_FONT_SIZE) {
-              this.fontSize -= 1
-              fontChanged = true
-            } else {
-              minedOutFont = true
-            }
-          }
-        }
-      }
-
-      if (this.$refs.textarea.scrollWidth <= this.$refs.textarea.offsetWidth && !fontChanged) {
-        if (this.fontSize < MAX_FONT_SIZE) {
-          this.fontSize += 1
-          fontChanged = true
-        } else {
-          maxedOutFont = true
-        }
-      }
-
-      if (
-        this.$refs.textarea.scrollHeight <= this.$refs.textarea.offsetHeight &&
-        (!fontChanged || minedOutFont)
-      ) {
-        if (this.fontSize < MAX_FONT_SIZE && !minedOutFont) {
-          this.fontSize += 1
-        } else {
-          maxedOutFont = true
-          if (this.height > MIN_HEIGHT) {
-            this.height -= 0.5
-          } else {
-            minedOutHeight = true
-          }
-        }
-      }
-      // store height to compute list mode positions
-      this.noteMoveLocal({ note: this.value, height: this.height })
-
-      // loop if not min/maxed or in stable state.
-      let twoAgo
-      if (previous.length > 1) {
-        twoAgo = previous.pop()
-      }
-      if (
-        !((maxedOutHeight && minedOutFont) || (minedOutHeight && maxedOutFont)) &&
-        (!twoAgo || !(twoAgo.height === this.height && twoAgo.fontSize === this.fontSize))
-      ) {
-        this.$nextTick(() => {
-          this.calculateFontSizeAndHeight(previous)
-        })
-      } else {
-        // done
-        this.noteUpdate({
-          changes: { height: this.height },
-          note: this.value,
-        })
-
-        if (this.listMode) {
-          this.sortSortable(this.value.type, { save: true })
-        }
-      }
-    },
-    setColor(position, colorId) {
-      const colors = Note.changeColor(this.value.colors, position, colorId)
-      this.noteUpdate({
-        changes: { colors },
-        note: this.value,
-      })
-      this.canvasUserSettingsUpdate({
-        lastUsedColors: colors,
-      })
-    },
-    zoom() {
-      this.layout[`selected${this.value.type.toUpperCase()}`] = this.value
-    },
-    updateText(e) {
-      this.noteUpdate({
-        changes: { text: e.target.value },
-        note: this.value,
-      })
-    },
-    humanformat,
-  },
-}
+defineExpose({
+  humanformat,
+})
+</script>
 </script>
 
 <style>

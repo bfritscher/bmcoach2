@@ -122,7 +122,7 @@
             :value="n"
             class="note-vpc"
             :class="{ 'vpc-both': cs && vp }"
-            :parent="$refs.paper"
+            :parent="paper!"
           ></note>
         </div>
       </div>
