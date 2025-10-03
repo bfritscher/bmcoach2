@@ -17,52 +17,43 @@
     </template>
   </draggable>
 </template>
-<script>
+<script setup lang="ts">
 import draggable from 'vuedraggable'
-import { COLORS_MATERIAL_HEX, ICONS, TYPE_NAMES } from '/src/utils/constants'
+import { computed } from 'vue'
+import { COLORS_MATERIAL_HEX, ICONS, TYPE_NAMES } from '@/utils/constants'
 import { useBMCStore } from '@/stores/bmc-store'
 import { useUIStore } from '@/stores/ui-store'
-import { mapState, mapActions } from 'pinia'
+import { storeToRefs } from 'pinia'
 
-export default {
-  components: {
-    draggable,
+const uiStore = useUIStore()
+const { rightDrawerOpen } = storeToRefs(uiStore)
+
+const bmcStore = useBMCStore()
+const { canvas, notesPresentationOrder } = storeToRefs(bmcStore)
+const { updateItemData } = bmcStore
+
+const notes = computed({
+  get() {
+    return notesPresentationOrder.value
   },
-  data() {
-    return {
-      ICONS,
-      TYPE_NAMES,
-    }
+  set(newNotes: any[]) {
+    updateItemData(canvas.value.$id, {
+      notesPresentationOrder: newNotes.map((n) => n['$id']),
+    })
   },
-  computed: {
-    ...mapState(useUIStore, ['rightDrawerOpen']),
-    ...mapState(useBMCStore, ['canvas', 'notesPresentationOrder']),
-    notes: {
-      get() {
-        return this.notesPresentationOrder
-      },
-      set(notes) {
-        this.updateItemData(this.canvas.$id, {
-          notesPresentationOrder: notes.map((n) => n['$id']),
-        })
-      },
-    },
-  },
-  methods: {
-    ...mapActions(useBMCStore, ['updateItemData']),
-    boxShadow(note) {
-      if (!note || !note.colors) {
-        return ''
-      }
-      return note.colors
-        .reduce((shadows, colorCode, i) => {
-          const size = (i + 1) * 5 + i * 2
-          shadows.push(`-${size}px 0px ${COLORS_MATERIAL_HEX[colorCode]}`)
-          return shadows
-        }, [])
-        .join(',')
-    },
-  },
+})
+
+function boxShadow(note: any) {
+  if (!note || !note.colors) {
+    return ''
+  }
+  return note.colors
+    .reduce((shadows: string[], colorCode: number, i: number) => {
+      const size = (i + 1) * 5 + i * 2
+      shadows.push(`-${size}px 0px ${COLORS_MATERIAL_HEX[colorCode]}`)
+      return shadows
+    }, [])
+    .join(',')
 }
 </script>
 
