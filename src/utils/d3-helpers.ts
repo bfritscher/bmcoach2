@@ -31,7 +31,8 @@ export const symbolsPaths: { [s: string]: string } = symbols.reduce(
     } else {
       const s = SymbolsLookup[name];
       if (s) {
-        all[name] = d3.symbol().type(s)() || '';
+        const path = d3.symbol().type(s)();
+        all[name] = path ?? '';
       }
     }
     return all;
