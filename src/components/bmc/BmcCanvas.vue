@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
+import { ref, useTemplateRef, computed, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import debounce from 'lodash.debounce'
 import Note from '@/components/bmc/Note.vue'
 import Zone from '@/components/bmc/Zone.vue'
@@ -214,7 +214,7 @@ const isLoading = ref(false)
 const showAsPresentation = ref(false)
 const showAsPrint = ref(false)
 const showCongrats = ref(false)
-const paper = ref<HTMLElement>()
+const paper = useTemplateRef('paper')
 
 const presentationProgress = computed(() => {
   if (!canvas.value || !canvas.value.notesPresentationOrder) {

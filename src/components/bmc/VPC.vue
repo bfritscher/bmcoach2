@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, getCurrentInstance } from 'vue'
+import { useTemplateRef, computed, watch, nextTick, getCurrentInstance } from 'vue'
 import Note from '@/components/bmc/Note.vue'
 import Zone from '@/components/bmc/Zone.vue'
 import ImageZone from '@/components/bmc/ImageZone.vue'
@@ -150,8 +150,8 @@ const bmcStore = useBMCStore()
 const { notesVPC, notesVPCvp, notesVPCcs, canvasSettings } = storeToRefs(bmcStore)
 const { noteCreate, getNotesByTypes } = bmcStore
 
-const vpc = ref<HTMLElement>()
-const paper = ref<HTMLElement>()
+const vpc = useTemplateRef('vpc')
+const paper = useTemplateRef('paper')
 const instance = getCurrentInstance()
 
 const vp = computed(() => layout.value.selectedVP)
@@ -188,12 +188,12 @@ watch(
   (val, oldVal) => {
     if (vpc.value) {
       if (val) {
-        vpc.value.style.setProperty('--vpc-source-x', `${val.left}%`)
-        vpc.value.style.setProperty('--vpc-source-y', `${val.top}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${val.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${val.top}%`)
         LAYOUT_UPDATE({ showVPC: true })
       } else if (oldVal) {
-        vpc.value.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
-        vpc.value.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
         if (!cs.value && showVPC.value) {
           nextTick(() => {
             LAYOUT_UPDATE({ showVPC: false })
@@ -210,12 +210,12 @@ watch(
   (val, oldVal) => {
     if (vpc.value) {
       if (val) {
-        vpc.value.style.setProperty('--vpc-source-x', `${val.left}%`)
-        vpc.value.style.setProperty('--vpc-source-y', `${val.top}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${val.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${val.top}%`)
         LAYOUT_UPDATE({ showVPC: true })
       } else if (oldVal) {
-        vpc.value.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
-        vpc.value.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
         if (!vp.value && showVPC.value) {
           nextTick(() => {
             LAYOUT_UPDATE({ showVPC: false })

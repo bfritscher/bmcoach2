@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, useTemplateRef, onMounted } from 'vue'
 import { gsap, Back } from 'gsap'
 import { random } from '@/utils/random'
 import AnimatedStar from '@/components/bmc/AnimatedStar.vue'
@@ -17,7 +17,7 @@ defineEmits<{
 
 const stars = ref(new Array(20))
 const trigger = ref<{ xSeed: number; ySeed: number } | false>(false)
-const h1 = ref<HTMLElement>()
+const h1 = useTemplateRef('h1')
 
 function reset() {
   trigger.value = false

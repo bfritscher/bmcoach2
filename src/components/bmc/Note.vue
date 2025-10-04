@@ -615,7 +615,7 @@ watch(
 onMounted(() => {
   debouncedCalculateFontSizeAndHeight = createDebouncedCalculateFontSizeAndHeight()
   window.addEventListener('resize', debouncedCalculateFontSizeAndHeight)
-  
+
   if (instance?.proxy?.$el) {
     const el = instance.proxy.$el
     ;(interact(el as any) as any)
@@ -729,7 +729,6 @@ onBeforeUnmount(() => {
 defineExpose({
   humanformat,
 })
-</script>
 </script>
 
 <style>
