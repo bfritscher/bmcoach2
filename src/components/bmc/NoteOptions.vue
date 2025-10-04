@@ -5,7 +5,7 @@
     @update:model-value="hideDialog"
   >
     <q-card class="note-options">
-      <q-card-section :class="`bg-${COLORS_MATERIAL_DARK[note.colors[0]]}`">
+      <q-card-section :class="`bg-${COLORS_MATERIAL_DARK[note.colors?.[0] || 0]}`">
         <div class="text-h5">{{ note.text }}</div>
       </q-card-section>
       <q-separator />
@@ -41,7 +41,7 @@
         <q-separator v-if="isEditable" />
         <q-input
           type="textarea"
-          :bg-color="COLORS_MATERIAL[note.colors[0]]"
+          :bg-color="COLORS_MATERIAL[note.colors?.[0] || 0]"
           filled
           outlined
           name="description"
@@ -133,7 +133,7 @@
                 >
                   <template #append>
                     <q-icon
-                      :name="isEditable ? 'delete_forever' : false"
+                      :name="isEditable ? 'delete_forever' : undefined"
                       class="cursor-pointer"
                       @click="removeCalcVar(calcVar)"
                     />
@@ -173,143 +173,175 @@
   </q-dialog>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, computed, nextTick } from 'vue'
 import humanFormat from 'human-format'
 import ImageZone from '@/components/bmc/ImageZone.vue'
 import Note from '@/models/Note'
 import { COLORS_MATERIAL, COLORS_MATERIAL_DARK } from '@/utils/constants'
-import { mapState, mapActions } from 'pinia'
+import { storeToRefs } from 'pinia'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useBMCStore } from '@/stores/bmc-store'
 
+import type { BMCNote } from '@/components/models'
+
 const patternVar = /^[a-zA-Z_][a-zA-Z\d_]*$/
 
-export default {
-  components: {
-    ImageZone,
+const bmcUiStore = useBmcUIStore()
+const { layout } = storeToRefs(bmcUiStore)
+
+const bmcStore = useBMCStore()
+const { focusedNote, calcIds, calcResults } = storeToRefs(bmcStore)
+const { noteUpdate, noteDelete, noteUpdateCalcVal } = bmcStore
+
+const newVariable = ref<string | null>(null)
+
+const rules = {
+  variable: (value: string) => patternVar.test(value) || 'Invalid name only use a-z, a-Z, 0-9, _',
+  unique: (value: string) => {
+    const calcIdsValue = calcIds.value
+    const firstIndex = calcIdsValue.indexOf(value) + 1
+    // check if there is a 2nd element in the array (1st time is self)
+    return (
+      calcIdsValue.indexOf(value, firstIndex) === -1 || 'Name already used, ID must be unique!'
+    )
   },
-  data() {
-    return {
-      newVariable: null,
-      rules: {
-        variable: (value) => patternVar.test(value) || 'Invalid name only use a-z, a-Z, 0-9, _',
-        unique: (value) => {
-          const calcIds = this.calcIds
-          const firstIndex = calcIds.indexOf(value) + 1
-          // check if there is a 2nd element in the array (1st time is self)
-          return (
-            calcIds.indexOf(value, firstIndex) === -1 || 'Name already used, ID must be unique!'
-          )
-        },
-      },
-      COLORS_MATERIAL_DARK,
-      COLORS_MATERIAL,
-    }
-  },
-  computed: {
-    ...mapState(useBmcUIStore, ['layout']),
-    ...mapState(useBMCStore, ['focusedNote', 'calcIds', 'calcResults']),
-    // ...mapState(useBMCStore, ['notesBMC', 'canvasSettings', 'canvas']),
-    note() {
-      const note = this.focusedNote
-      // auto generate id if not defined at first use
-      if (this.layout.showNoteOptionsCalc && note && !note.calcId) {
-        const calcId = note.text.replace(/[^a-zA-Z\d_]/g, '_')
-        // eslint-disable-next-line
-        this.$nextTick(() => {
-          this.noteUpdate({
-            note,
-            changes: {
-              calcId,
-            },
-          })
-        })
-        return note
-      }
-      return note || new Note()
-    },
-    isEditable() {
-      return !this.note.isGame && this.layout.isEditable
-    },
-  },
-  methods: {
-    ...mapActions(useBMCStore, ['noteUpdate', 'noteDelete', 'noteUpdateCalcVal']),
-    whichCalcDisplay(calcVar) {
-      return ['B', 'R', 'G'].find((c) => this.note[`calcDisplay${c}`] === calcVar)
-    },
-    hideDialog() {
-      this.layout.showNoteOptions = false
-    },
-    deleteNote() {
-      this.hideDialog()
-      this.noteDelete(this.note)
-    },
-    updateNote(field, data) {
-      this.noteUpdate({
-        note: this.note,
+}
+
+const note = computed(() => {
+  const noteValue = focusedNote.value
+  // auto generate id if not defined at first use
+  if (layout.value.showNoteOptionsCalc && noteValue && !noteValue.calcId) {
+    const calcId = noteValue.text.replace(/[^a-zA-Z\d_]/g, '_')
+    nextTick(() => {
+      noteUpdate({
+        note: noteValue,
         changes: {
-          [field]: data,
+          calcId,
         },
       })
+    })
+    return noteValue
+  }
+  // Return empty note if no focused note
+  if (!noteValue) {
+    return {
+      $id: '',
+      type: '',
+      text: '',
+      colors: [0],
+      left: 0,
+      top: 0,
+      listLeft: 0,
+      listTop: 0,
+      angle: 0,
+      height: 0,
+      description: '',
+      image: '',
+      parent: '',
+      calcId: '',
+      values: {},
+      showLabel: false,
+      showAsSticky: false,
+      hidden: false,
+      children: [],
+    } as BMCNote
+  }
+  return noteValue
+})
+
+const isEditable = computed(() => {
+  return !(note.value as any).isGame && layout.value.isEditable
+})
+
+function whichCalcDisplay(calcVar: string | number) {
+  const key = String(calcVar)
+  return ['B', 'R', 'G'].find((c) => note.value[`calcDisplay${c}`] === key)
+}
+
+function hideDialog() {
+  layout.value.showNoteOptions = false
+}
+
+function deleteNote() {
+  hideDialog()
+  noteDelete(note.value)
+}
+
+function updateNote(field: string, data: any) {
+  noteUpdate({
+    note: note.value,
+    changes: {
+      [field]: data,
     },
-    updateCalcDisplay(calVar, c) {
-      const current = this.whichCalcDisplay(calVar)
-      const changes = {}
-      if (c) {
-        changes[`calcDisplay${c}`] = calVar
-      }
-      if (current) {
-        changes[`calcDisplay${current}`] = null
-      }
-      this.noteUpdate({
-        note: this.note,
-        changes,
-      })
-    },
-    getResult(calcId, calcVar) {
-      if (this.calcResults && this.calcResults[calcId] && this.calcResults[calcId][calcVar]) {
-        const res = this.calcResults[calcId][calcVar]
-        if (typeof res === 'object') {
-          try {
-            return JSON.stringify(res)
-          } catch (e) {
-            return res
-          }
-        }
-        if (!isNaN(res)) {
-          return humanFormat(res)
-        }
+  })
+}
+
+function updateCalcDisplay(calVar: string | number, c: string | null) {
+  const key = String(calVar)
+  const current = whichCalcDisplay(key)
+  const changes: Record<string, any> = {}
+  if (c) {
+    changes[`calcDisplay${c}`] = key
+  }
+  if (current) {
+    changes[`calcDisplay${current}`] = null
+  }
+  noteUpdate({
+    note: note.value,
+    changes,
+  })
+}
+
+function getResult(calcId: string, calcVar: string | number) {
+  const key = String(calcVar)
+  if (calcResults.value && calcResults.value[calcId] && calcResults.value[calcId][key]) {
+    const res = calcResults.value[calcId][key]
+    if (typeof res === 'object') {
+      try {
+        return JSON.stringify(res)
+      } catch (e) {
         return res
       }
-      return 'N/A'
-    },
-    getError(calcVar) {
-      return this.calcResults && this.calcResults[`err_${this.note.calcId}.${calcVar}`]
-        ? this.calcResults[`err_${this.note.calcId}.${calcVar}`]
-        : ''
-    },
-    addCalcVar() {
-      // TODO should only send new var...
-      if (this.newVariable) {
-        const copy = Object.assign({}, this.note.values)
-        copy[this.newVariable] = ''
-        this.updateNote('values', copy)
-        this.newVariable = null
-      }
-    },
-    removeCalcVar(name) {
-      const copy = Object.assign({}, this.note.values)
-      delete copy[name]
-      this.updateNote('values', copy)
-    },
-    updateCalcVal(key, value) {
-      this.noteUpdateCalcVal({
-        note: this.note,
-        key,
-        value,
-      })
-    },
-  },
+    }
+    if (!isNaN(res)) {
+      return humanFormat(res)
+    }
+    return res
+  }
+  return 'N/A'
+}
+
+function getError(calcVar: string | number) {
+  const key = String(calcVar)
+  return calcResults.value && calcResults.value[`err_${note.value.calcId}.${key}`]
+    ? calcResults.value[`err_${note.value.calcId}.${key}`]
+    : ''
+}
+
+function addCalcVar() {
+  // TODO should only send new var...
+  if (newVariable.value) {
+    const copy = Object.assign({}, note.value.values)
+    copy[newVariable.value] = ''
+    updateNote('values', copy)
+    newVariable.value = null
+  }
+}
+
+function removeCalcVar(name: string | number) {
+  const key = String(name)
+  const copy = Object.assign({}, note.value.values)
+  delete copy[key]
+  updateNote('values', copy)
+}
+
+function updateCalcVal(key: string | number, value: any) {
+  noteUpdateCalcVal({
+    note: note.value,
+    key: String(key),
+    value,
+  })
 }
 </script>
 

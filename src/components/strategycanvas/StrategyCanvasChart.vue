@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import * as d3 from 'd3'
-import { ref, watchEffect } from 'vue'
+import { watchEffect, useTemplateRef } from 'vue'
 import { useQuasar } from 'quasar'
 import { useChartStore } from '@/stores/chart-store'
 import { useUIStore } from '@/stores/ui-store'
@@ -13,7 +13,7 @@ const $q = useQuasar()
 const chartStore = useChartStore()
 const uiStore = useUIStore()
 
-const elm = ref<HTMLElement | null>(null)
+const elm = useTemplateRef('elm')
 
 type Point = [number, number]
 

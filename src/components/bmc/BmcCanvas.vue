@@ -164,7 +164,7 @@
                 (layout.selectedCS && !layout.selectedVP && note.type === 'vp') ||
                 (!layout.selectedCS && layout.selectedVP && note.type === 'cs'),
             }"
-            :parent="$refs.paper"
+            :parent="paper!"
           ></note>
         </div>
       </div>
@@ -179,7 +179,8 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, useTemplateRef, computed, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import debounce from 'lodash.debounce'
 import Note from '@/components/bmc/Note.vue'
 import Zone from '@/components/bmc/Zone.vue'
@@ -190,234 +191,242 @@ import DrawSurface from '@/components/bmc/DrawSurface.vue'
 import ImageZone from '@/components/bmc/ImageZone.vue'
 import NoteOptions from '@/components/bmc/NoteOptions.vue'
 import PresentationControls from '@/components/bmc/PresentationControls.vue'
-import { mapState, mapActions } from 'pinia'
+import { storeToRefs } from 'pinia'
 import { totalOffset } from '@/utils/dom'
 import { ICONS } from '@/utils/constants'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useBMCStore } from '@/stores/bmc-store'
+import { useRoute } from 'vue-router'
 
-let resizeHandler
+const route = useRoute()
+const instance = getCurrentInstance()
 
-export default {
-  name: 'BmcCanvas',
-  components: {
-    Note,
-    NoteOptions,
-    Zone,
-    Vpc,
-    ImageZone,
-    DrawSurface,
-    GameStatusBar,
-    PopInText,
-    PresentationControls,
-  },
-  data() {
-    return {
-      isLoading: false,
-      showAsPresentation: false,
-      showAsPrint: false,
-      ICONS,
-      showCongrats: false,
-    }
-  },
-  computed: {
-    ...mapState(useBmcUIStore, ['layout']),
-    ...mapState(useBMCStore, ['notesBMC', 'canvasSettings', 'canvas']),
-    presentationProgress() {
-      if (!this.canvas || !this.canvas.notesPresentationOrder) {
-        return 0
+const bmcUiStore = useBmcUIStore()
+const { layout } = storeToRefs(bmcUiStore)
+
+const bmcStore = useBMCStore()
+const { notesBMC, canvasSettings, canvas } = storeToRefs(bmcStore)
+const { noteCreate, zoomNoteKey, canvasInfoUpdate } = bmcStore
+
+let resizeHandler: ReturnType<typeof debounce> | null = null
+
+const isLoading = ref(false)
+const showAsPresentation = ref(false)
+const showAsPrint = ref(false)
+const showCongrats = ref(false)
+const paper = useTemplateRef('paper')
+
+const presentationProgress = computed(() => {
+  if (!canvas.value || !canvas.value.notesPresentationOrder) {
+    return 0
+  }
+  return (
+    ((canvas.value.notesPresentationOrder.indexOf(canvas.value.currentPresentationKey) + 1) * 100) /
+    canvas.value.notesPresentationOrder.length
+  )
+})
+
+const listMode = computed(() => canvasSettings.value.listMode)
+
+watch(listMode, () => {
+  // triggers height calculations
+  window.dispatchEvent(new Event('resize'))
+})
+
+watch(
+  () => route.name,
+  () => {
+    fetchData()
+  }
+)
+
+watch(
+  () => layout.value.presentation,
+  (val) => {
+    const crowdShortcut = document.getElementById('crowd-shortcut')
+    if (val) {
+      if (instance?.proxy?.$el) {
+        const offset = totalOffset(instance.proxy.$el)
+        instance.proxy.$el.style.top = `${offset.top}px`
+        instance.proxy.$el.style.left = `${offset.left}px`
+        instance.proxy.$el.style.position = 'absolute'
       }
-      return (
-        ((this.canvas.notesPresentationOrder.indexOf(this.canvas.currentPresentationKey) + 1) *
-          100) /
-        this.canvas.notesPresentationOrder.length
-      )
-    },
-    listMode() {
-      return this.canvasSettings.listMode
-    },
-  },
-  watch: {
-    listMode() {
-      // triggers height calculations
-      window.dispatchEvent(new Event('resize'))
-    },
-    // call again the method if the route changes
-    $route: 'fetchData',
-    'layout.presentation': function animatePresentation(val) {
-      const crowdShortcut = document.getElementById('crowd-shortcut')
-      if (val) {
-        const offset = totalOffset(this.$el)
-        this.$el.style.top = `${offset.top}px`
-        this.$el.style.left = `${offset.left}px`
-        this.$el.style.position = 'absolute'
+      if (crowdShortcut) {
+        crowdShortcut.style.display = 'none'
+      }
+      setTimeout(() => {
+        showAsPresentation.value = true
+      }, 0)
+    } else {
+      showAsPresentation.value = false
+      setTimeout(() => {
+        if (instance?.proxy?.$el) {
+          instance.proxy.$el.style.top = ''
+          instance.proxy.$el.style.left = ''
+          instance.proxy.$el.style.position = 'relative'
+        }
         if (crowdShortcut) {
-          crowdShortcut.style.display = 'none'
+          crowdShortcut.style.display = 'block'
         }
-        setTimeout(() => {
-          this.showAsPresentation = true
-        }, 0)
-      } else {
-        this.showAsPresentation = false
-        setTimeout(() => {
-          this.$el.style.top = ''
-          this.$el.style.left = ''
-          this.$el.style.position = 'relative'
-          if (crowdShortcut) {
-            crowdShortcut.style.display = 'block'
-          }
-        }, 500)
-      }
-    },
-  },
-  mounted() {
-    if (this.$route.name === 'BusinessModelCanvas') {
-      this.fetchData()
-      // FIXME
-    } else if (this.$route.name === 'print') {
-      // fetch data from sessionsid
-      this.fetchPrintData(this.$route.params.id).then(() => {
-        this.showAsPresentation = true
-        this.showAsPrint = true
-        this.handleWindowResize()
-        window.dispatchEvent(new Event('resize'))
-      })
+      }, 500)
     }
-  },
-  beforeUnmount() {
-    if (resizeHandler) {
-      window.removeEventListener('resize', resizeHandler)
-    }
-    // FIXME
-    // this.$store.dispatch('unbindCanvas');
-  },
-  methods: {
-    ...mapActions(useBMCStore, ['noteCreate', 'zoomNoteKey', 'canvasInfoUpdate']),
-    fetchData() {
-      const zoomed =
-        this.zoomNoteKey(this.$route.query.zoom1) || this.zoomNoteKey(this.$route.query.zoom2)
-      if (!zoomed) {
-        this.layout.showVPC = false
-      }
-      if (resizeHandler) {
-        window.removeEventListener('resize', resizeHandler)
-      }
-      resizeHandler = debounce(this.handleWindowResize, 300)
-      window.addEventListener('resize', resizeHandler)
-      this.handleWindowResize()
-    },
-    handleWindowResize() {
-      if (!this.$refs.paper) {
-        return
-      }
-      this.$el.style.setProperty('--zoneLabelFontSize', `${this.$refs.paper.offsetHeight * 0.02}px`)
-      this.$el.style.setProperty(
-        '--zoneLabelIconFontSize',
-        `${this.$refs.paper.offsetHeight * 0.03}px`,
-      )
-    },
-    addNote(e) {
-      const offset = totalOffset(this.$refs.paper)
-      const noteCenter = {
-        x: this.$refs.paper.offsetWidth / 15,
-        y: 20,
-      }
-      const x = e.x - noteCenter.x - offset.left
-      const y = e.y - noteCenter.y - offset.top
+  }
+)
 
-      const note = {
-        left: x / (this.$refs.paper.offsetWidth / 100),
-        top: y / (this.$refs.paper.offsetHeight / 100),
-        listLeft: x / (this.$refs.paper.offsetWidth / 100),
-        listTop: y / (this.$refs.paper.offsetHeight / 100),
-        type: 'bmc_tmp',
-        colors: this.canvasSettings.lastUsedColors,
-        image: e.image,
-      }
-
-      if (e.target.classList.contains('zone')) {
-        note.type = e.target.getAttribute('id')
-      }
-      // TODO #56: keep previous setting?
-      if (e.image) {
-        note.showAsSticky = false
-      }
-      this.noteCreate(note)
-    },
-    // TODO: move and generalize for VPC + move to server
-    /*
-    prepareGame() {
-      // https://bost.ocks.org/mike/shuffle/
-      function shuffle(array) {
-        let m = array.length;
-        let t;
-        let i;
-
-        // While there remain elements to shuffle…
-        while (m) {
-          // Pick a remaining element…
-          m -= 1;
-          i = Math.floor(Math.random() * m);
-
-          // And swap it with the current element.
-          t = array[m];
-          array[m] = array[i];
-          array[i] = t;
-        }
-
-        return array;
-      }
-      let it = 0;
-      let il = 0;
-      const TOP_END = 8;
-      const BOTTOM_START = 19;
-      const X_INTERVAL = 14;
-      const Y_INTERVAL = 18;
-      shuffle(this.notesBMC.slice()).forEach((note, i) => {
-        if (i > TOP_END && i < BOTTOM_START) {
-          if (i % 2 === 1) {
-            il = 0;
-            it += Y_INTERVAL;
-          } else {
-            il = 100 + X_INTERVAL;
-          }
-        }
-        if (i === BOTTOM_START) {
-          il = 0;
-          it = 100 + Y_INTERVAL;
-        }
-        const left = -X_INTERVAL + Math.random() * 4 + il;
-        const top = -Y_INTERVAL + Math.random() * 4 + it;
-        il += X_INTERVAL;
-
-        note.left = left;
-        note.top = top;
-        note.isGame = true;
-        note.type_saved = note.type;
-        note.type = 'bmc_tmp';
-        // TODO: source ref if serverside check
-      });
-      const canvas = Object.assign({}, this.canvas);
-      canvas.info = Object.assign({}, this.canvas?.info);
-      canvas.info.name += ' GAME';
-      canvas.info.isGame = true;
-      canvas.source = 'bmdesigner';
-
-      function downloadObjectAsJson(exportObj, exportName) {
-        const dataStr = `data:text/json;charset=utf-8, ${encodeURIComponent(
-          JSON.stringify(exportObj)
-        )}`;
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute('href', dataStr);
-        downloadAnchorNode.setAttribute('download', `${exportName}.json`);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-      }
-      downloadObjectAsJson(canvas, canvas.info?.name);
-    },
-    */
-  },
+function handleWindowResize() {
+  if (!paper.value || !instance?.proxy?.$el) {
+    return
+  }
+  instance.proxy.$el.style.setProperty('--zoneLabelFontSize', `${paper.value.offsetHeight * 0.02}px`)
+  instance.proxy.$el.style.setProperty(
+    '--zoneLabelIconFontSize',
+    `${paper.value.offsetHeight * 0.03}px`
+  )
 }
+
+function fetchData() {
+  const zoomed = zoomNoteKey(route.query.zoom1 as string) || zoomNoteKey(route.query.zoom2 as string)
+  if (!zoomed) {
+    layout.value.showVPC = false
+  }
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler as any)
+  }
+  resizeHandler = debounce(handleWindowResize, 300)
+  window.addEventListener('resize', resizeHandler as any)
+  handleWindowResize()
+}
+
+function fetchPrintData(id: string) {
+  // TODO: Implement print data fetching
+  return Promise.resolve()
+}
+
+function addNote(e: any) {
+  if (!paper.value) return
+  const offset = totalOffset(paper.value)
+  const noteCenter = {
+    x: paper.value.offsetWidth / 15,
+    y: 20,
+  }
+  const x = e.x - noteCenter.x - offset.left
+  const y = e.y - noteCenter.y - offset.top
+
+  const note: any = {
+    left: x / (paper.value.offsetWidth / 100),
+    top: y / (paper.value.offsetHeight / 100),
+    listLeft: x / (paper.value.offsetWidth / 100),
+    listTop: y / (paper.value.offsetHeight / 100),
+    type: 'bmc_tmp',
+    colors: canvasSettings.value.lastUsedColors,
+    image: e.image,
+  }
+
+  if (e.target.classList.contains('zone')) {
+    note.type = e.target.getAttribute('id')
+  }
+  // TODO #56: keep previous setting?
+  if (e.image) {
+    note.showAsSticky = false
+  }
+  noteCreate(note)
+}
+
+onMounted(() => {
+  if (route.name === 'BusinessModelCanvas') {
+    fetchData()
+    // FIXME
+  } else if (route.name === 'print') {
+    // fetch data from sessionsid
+    fetchPrintData(route.params.id as string).then(() => {
+      showAsPresentation.value = true
+      showAsPrint.value = true
+      handleWindowResize()
+      window.dispatchEvent(new Event('resize'))
+    })
+  }
+})
+
+onBeforeUnmount(() => {
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler as any)
+  }
+  // FIXME
+  // this.$store.dispatch('unbindCanvas');
+})
+
+// TODO: move and generalize for VPC + move to server
+/*
+function prepareGame() {
+  // https://bost.ocks.org/mike/shuffle/
+  function shuffle(array) {
+    let m = array.length;
+    let t;
+    let i;
+
+    // While there remain elements to shuffle…
+    while (m) {
+      // Pick a remaining element…
+      m -= 1;
+      i = Math.floor(Math.random() * m);
+
+      // And swap it with the current element.
+      t = array[m];
+      array[m] = array[i];
+      array[i] = t;
+    }
+
+    return array;
+  }
+  let it = 0;
+  let il = 0;
+  const TOP_END = 8;
+  const BOTTOM_START = 19;
+  const X_INTERVAL = 14;
+  const Y_INTERVAL = 18;
+  shuffle(notesBMC.value.slice()).forEach((note, i) => {
+    if (i > TOP_END && i < BOTTOM_START) {
+      if (i % 2 === 1) {
+        il = 0;
+        it += Y_INTERVAL;
+      } else {
+        il = 100 + X_INTERVAL;
+      }
+    }
+    if (i === BOTTOM_START) {
+      il = 0;
+      it = 100 + Y_INTERVAL;
+    }
+    const left = -X_INTERVAL + Math.random() * 4 + il;
+    const top = -Y_INTERVAL + Math.random() * 4 + it;
+    il += X_INTERVAL;
+
+    note.left = left;
+    note.top = top;
+    note.isGame = true;
+    note.type_saved = note.type;
+    note.type = 'bmc_tmp';
+    // TODO: source ref if serverside check
+  });
+  const canvasValue = Object.assign({}, canvas.value);
+  canvasValue.info = Object.assign({}, canvas.value?.info);
+  canvasValue.info.name += ' GAME';
+  canvasValue.info.isGame = true;
+  canvasValue.source = 'bmdesigner';
+
+  function downloadObjectAsJson(exportObj, exportName) {
+    const dataStr = `data:text/json;charset=utf-8, ${encodeURIComponent(
+      JSON.stringify(exportObj)
+    )}`;
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute('href', dataStr);
+    downloadAnchorNode.setAttribute('download', `${exportName}.json`);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  }
+  downloadObjectAsJson(canvasValue, canvasValue.info?.name);
+}
+*/
 </script>
 
 <style scoped>

@@ -30,73 +30,61 @@
   </q-fab>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, computed, watch, nextTick } from 'vue'
 import { COLORS_MATERIAL_DARK } from '@/utils/constants'
 
-export default {
-  name: 'ColorSelector',
-  props: {
-    canDelete: {
-      default: false,
-      type: Boolean,
-    },
-    value: {
-      default: -1,
-      type: Number,
-    },
-    small: {
-      default: false,
-      type: Boolean,
-    },
-    hide: {
-      default: () => [],
-      type: Array,
-    },
-    direction: {
-      default: 'bottom',
-      type: String,
-    },
-  },
-  emits: ['input'],
-  data() {
-    return {
-      isOpen: false,
-      COLORS_MATERIAL_DARK,
+const props = withDefaults(
+  defineProps<{
+    canDelete?: boolean
+    value?: number
+    small?: boolean
+    hide?: number[]
+    direction?: 'up' | 'right' | 'down' | 'left'
+  }>(),
+  {
+    canDelete: false,
+    value: -1,
+    small: false,
+    hide: () => [],
+    direction: 'down',
+  }
+)
+
+const emit = defineEmits<{
+  input: [value: number]
+}>()
+
+const isOpen = ref(false)
+
+const icon = computed(() => {
+  if (isOpen.value) {
+    return 'close'
+  }
+  if (props.value > -1 && !props.small) {
+    return 'color_lens'
+  }
+  if (props.value === -1) {
+    return 'add'
+  }
+  return ''
+})
+
+watch(isOpen, (val) => {
+  if (val && props.hide.length === 5) {
+    let last = 0
+    while (props.hide.indexOf(last) > -1) {
+      last += 1
     }
-  },
-  computed: {
-    icon() {
-      if (this.isOpen) {
-        return 'close'
-      }
-      if (this.value > -1 && !this.small) {
-        return 'color_lens'
-      }
-      if (this.value == -1) {
-        return 'add'
-      }
-      return ''
-    },
-  },
-  watch: {
-    isOpen(val) {
-      if (val && this.hide.length === 5) {
-        let last = 0
-        while (this.hide.indexOf(last) > -1) {
-          last += 1
-        }
-        this.$emit('input', last)
-        this.$nextTick(() => {
-          this.isOpen = false
-        })
-      }
-    },
-  },
-  methods: {
-    setColor(colorId) {
-      this.$emit('input', colorId)
-    },
-  },
+    emit('input', last)
+    nextTick(() => {
+      isOpen.value = false
+    })
+  }
+})
+
+function setColor(colorId: number) {
+  emit('input', colorId)
 }
 </script>
 

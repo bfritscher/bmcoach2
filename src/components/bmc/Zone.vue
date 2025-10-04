@@ -10,51 +10,53 @@
   </div>
 </template>
 
-<script>
-import interact from 'interactjs';
+<script setup lang="ts">
+import { ref, onMounted, getCurrentInstance } from 'vue'
+import interact from 'interactjs'
 
-export default {
-  name: 'BmcZone',
-  props: ['label', 'dropzoneAccept', 'hasError'],
-  data() {
-    return {
-      dropzone: null,
-    };
-  },
-  mounted() {
-    // const accept = this.dropzoneAccept;
-    this.dropzone = interact(this.$el).dropzone({
-      accept: this.dropzoneAccept,
+defineProps<{
+  label: string
+  dropzoneAccept: string
+  hasError?: boolean
+}>()
+
+const dropzone = ref<ReturnType<typeof interact> | null>(null)
+const instance = getCurrentInstance()
+
+onMounted(() => {
+  if (instance?.proxy?.$el) {
+    dropzone.value = interact(instance.proxy.$el).dropzone({
+      accept: instance.props.dropzoneAccept as string,
       // Require a 75% element overlap for a drop to be possible
       overlap: 0.75,
       ondropactivate: (event) => {
         // add active dropzone feedback
-        event.target.classList.add('drop-active');
+        event.target.classList.add('drop-active')
       },
       ondragenter: (event) => {
-        const draggableElement = event.relatedTarget;
-        const dropzoneElement = event.target;
+        const draggableElement = event.relatedTarget
+        const dropzoneElement = event.target
 
         // feedback the possibility of a drop
-        dropzoneElement.classList.add('drop-target');
-        draggableElement.classList.add('can-drop');
+        dropzoneElement.classList.add('drop-target')
+        draggableElement.classList.add('can-drop')
       },
       ondragleave: (event) => {
         // remove the drop feedback style
-        event.target.classList.remove('drop-target');
-        event.relatedTarget.classList.remove('can-drop');
+        event.target.classList.remove('drop-target')
+        event.relatedTarget.classList.remove('can-drop')
       },
       ondrop: (event) => {
-        event.relatedTarget.classList.remove('can-drop');
+        event.relatedTarget.classList.remove('can-drop')
       },
       ondropdeactivate: (event) => {
         // remove active dropzone feedback
-        event.target.classList.remove('drop-active');
-        event.target.classList.remove('drop-target');
+        event.target.classList.remove('drop-active')
+        event.target.classList.remove('drop-target')
       },
-    });
-  },
-};
+    })
+  }
+})
 </script>
 
 <style>
