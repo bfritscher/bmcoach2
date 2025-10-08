@@ -71,6 +71,14 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'teamdebug',
+        path: 'team/:teamId/debug',
+        component: () => import('@/pages/team/TeamDebugPage.vue'),
+        meta: {
+          requiresAuth: true,
+        },
+      },
+      {
         name: 'StrategyCanvas',
         path: 'team/:teamId/strategycanvas/:id',
         meta: {
