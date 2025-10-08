@@ -1,24 +1,26 @@
 <template>
-  <draggable
+  <VueDraggable
     v-if="rightDrawerOpen"
     v-model="notes"
     tag="ul"
     ghost-class="ghost"
-    animation="200"
-    draggable=".note-item"
+    :animation="200"
+    drag-class=".note-item"
     class="presentation-sorter-list"
-    item-key="$id"
   >
-    <template #item="{ element }">
-      <li class="note-item" :style="{ 'box-shadow': boxShadow(element) }">
-        {{ element.text }}
-        <q-icon :title="TYPE_NAMES[element.type]" :name="ICONS[element.type]" />
-      </li>
-    </template>
-  </draggable>
+    <li
+      v-for="element in notes"
+      :key="element.$id"
+      class="note-item"
+      :style="{ 'box-shadow': boxShadow(element) }"
+    >
+      {{ element.text }}
+      <q-icon :title="TYPE_NAMES[element.type]" :name="ICONS[element.type]" />
+    </li>
+  </VueDraggable>
 </template>
 <script setup lang="ts">
-import draggable from 'vuedraggable'
+import { VueDraggable } from 'vue-draggable-plus'
 import { computed } from 'vue'
 import { COLORS_MATERIAL_HEX, ICONS, TYPE_NAMES } from '@/utils/constants'
 import { useBMCStore } from '@/stores/bmc-store'

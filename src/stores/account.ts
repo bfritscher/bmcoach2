@@ -5,6 +5,7 @@ import { accountClient } from '@/api/appwrite'
 import { useTeamsStore } from '@/stores/teams'
 import { Notify } from 'quasar'
 import { useRouter } from 'vue-router'
+import { get } from 'node_modules/axios/index.d.cts'
 const baseUrl = import.meta.env.VITE_APP_URL
 
 export const useAccountStore = defineStore('account', () => {
@@ -147,6 +148,18 @@ export const useAccountStore = defineStore('account', () => {
     return accountClient.updateVerification({ userId, secret })
   }
 
+  function getSessions() {
+    return accountClient.listSessions()
+  }
+
+  function getIdentities() {
+    return accountClient.listIdentities()
+  }
+
+  function deleteIdentity(identityId: string) {
+    return accountClient.deleteIdentity({ identityId })
+  }
+
   return {
     account,
     session,
@@ -164,5 +177,8 @@ export const useAccountStore = defineStore('account', () => {
     updateEmail,
     lockAccount,
     verifyEmail,
+    getSessions,
+    getIdentities,
+    deleteIdentity,
   }
 })

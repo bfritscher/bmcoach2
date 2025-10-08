@@ -2,15 +2,16 @@
 
 ## Main
 
+favicon
+title on some pages without meta?
+
 ## Chart
 copy
 
 ## BMC
 [primary]
-- fix presentation order
 - fix bug infinite request if note expand on empty text/id
 - fix description reactivity notesoption
-- test search vpc
 
 [other]
 - duplicate canvas and files

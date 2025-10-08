@@ -21,7 +21,11 @@ export const useSearchStore = defineStore('search', () => {
       if (lastId) {
         query.push(Query.cursorAfter(lastId))
       }
-      const response = await databases.listDocuments('bmcoach', 'items', query)
+      const response = await databases.listDocuments({
+        databaseId: 'bmcoach',
+        collectionId: 'items',
+        queries: query,
+      })
       results = results.concat(response.documents)
       if (response.documents.length > 0) {
         lastId = response.documents[response.documents.length - 1]?.$id

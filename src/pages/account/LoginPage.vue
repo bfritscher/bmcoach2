@@ -1,12 +1,13 @@
 <template>
   <q-page class="column col-12">
     <div class="col q-ma-xl">
-      <q-card>
+      <q-card flat bordered>
         <q-card-section class="bg-primary text-white">
-          <div class="text-h6">Login</div>
+          <div v-if="!accountStore.account" class="text-h6">Login</div>
+          <div v-else class="text-h6">Add Provider to Account</div>
         </q-card-section>
         <q-card-section>
-          <div class="text-subtitle2">External account</div>
+          <div class="text-subtitle2 q-mb-sm">External account</div>
           <div class="row q-gutter-sm">
             <q-btn color="blue" padding="xs" no-caps @click="accountStore.loginOAuth2('google')">
               <q-icon
@@ -41,8 +42,8 @@
           </div>
         </q-card-section>
         <q-separator />
-        <q-card-section>
-          <div class="text-subtitle2">Local account</div>
+        <q-card-section v-if="!accountStore.account">
+          <div class="text-subtitle2 q-mb-sm">Local account</div>
           <q-input v-model="email" type="email" label="Email" />
           <q-input v-model="password" type="password" label="Password" />
         </q-card-section>
@@ -51,10 +52,17 @@
           <p class="text-red">{{ error }}</p>
         </q-card-section>
 
-        <q-card-actions class="q-px-md">
+        <q-card-actions v-if="!accountStore.account" class="q-px-md">
           <q-btn to="/signup" flat label="Or Sign up here" />
           <q-space />
-          <q-btn padding="xs lg" type="submit" color="secondary" label="login" @click="login()" />
+          <q-btn
+            padding="xs lg"
+            type="submit"
+            color="primary"
+            label="Login"
+            unelevated
+            @click="login()"
+          />
         </q-card-actions>
       </q-card>
     </div>
@@ -62,13 +70,10 @@
 </template>
 
 <script setup lang="ts">
-import { watchEffect, ref } from 'vue'
+import { ref } from 'vue'
 import { useAccountStore } from '@/stores/account'
-import { useRouter } from 'vue-router'
 import { AppwriteException } from 'appwrite'
 const accountStore = useAccountStore()
-
-const router = useRouter()
 
 const email = ref('')
 const password = ref('')
@@ -83,9 +88,11 @@ async function login() {
 }
 
 // TODO handle redirect?
+/*
 watchEffect(() => {
   if (accountStore.account) {
     router.push('/')
   }
 })
+  */
 </script>

@@ -1,12 +1,11 @@
 <template>
   <q-page class="column col-12">
     <div class="col q-ma-xl">
-      <q-card>
+      <q-card flat bordered>
         <q-card-section class="bg-primary text-white">
-          <div class="text-h6">Sign Up</div>
+          <div class="text-h6">Sign Up For Local Account</div>
         </q-card-section>
         <q-card-section>
-          <div class="text-subtitle2">Local account</div>
           <q-input v-model="name" type="text" label="Name" />
           <q-input v-model="email" type="email" label="Email" />
           <q-input v-model="password" type="password" label="Password" />
@@ -22,8 +21,10 @@
           <q-btn
             padding="xs lg"
             type="submit"
-            color="secondary"
-            label="Register"
+            color="primary"
+            label="Sign Up"
+            unelevated
+          
             @click="signup()"
           />
         </q-card-actions>
