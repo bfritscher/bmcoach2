@@ -5,7 +5,7 @@
       <q-card flat bordered class="bg-primary text-white">
         <q-card-section class="row items-center q-col-gutter-md">
           <div class="col-12 col-sm">
-            <div class="text-h5 text-weight-bold">Project: {{ teamsStore.currentTeam?.name }}</div>
+            <div class="text-h5 text-weight-bold" @click="showEditNameDialog">Project: {{ teamsStore.currentTeam?.name }}</div>
           </div>
           <div class="col-auto row items-center q-gutter-sm">
             <q-btn
@@ -63,8 +63,8 @@
               >
                 <q-card flat bordered clickable v-ripple @click="navigate">
                   <q-card-section class="row items-center q-gutter-sm">
-                    <q-avatar icon="show_chart" color="primary" text-color="white" />
-                    <div class="ellipsis" :title="item.title">{{ item.title }}</div>
+                    <q-avatar icon="img:/icons/strategy_canvas_logo.svg"/>
+                    <div class="ellipsis text-primary" :title="item.title">{{ item.title }}</div>
                   </q-card-section>
                   <q-card-actions>
                     <q-btn
@@ -165,6 +165,7 @@
 </template>
 
 <script setup lang="ts">
+import { useQuasar } from 'quasar'
 import { useMeta } from 'quasar'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -180,6 +181,7 @@ import ColorHash from 'color-hash'
 const colorHash = new ColorHash()
 import defaultBackground from '@/assets/bmc/default_bmc_logo_background.jpg'
 
+const $q = useQuasar()
 const route = useRoute()
 const teamsStore = useTeamsStore()
 const itemsStore = useItemsStore()
@@ -234,6 +236,23 @@ function confirmDeleteBmc(item: BmcItem) {
       bmcStore.canvasDelete()
     })
     .onCancel(() => {})
+}
+
+function showEditNameDialog() {
+  $q.dialog({
+    title: 'Rename project',
+    message: 'Enter a new name for the project.',
+    prompt: {
+      model: teamsStore.currentTeam?.name || '',
+      type: 'text',
+      isValid: (v) => !!(v && v.length > 0),
+    },
+    ok: 'Rename',
+    cancel: 'Cancel',
+    persistent: true,
+  }).onOk((name) => {
+    teamsStore.updateTeamName(name)
+  })
 }
 </script>
 <style>

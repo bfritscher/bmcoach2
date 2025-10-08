@@ -161,7 +161,6 @@ import { useAccountStore } from '@/stores/account'
 import { useItemsStore } from '@/stores/items'
 import { useStorageStore } from '@/stores/storage'
 import { useRouter } from 'vue-router'
-import Note from '@/models/Note'
 
 const $q = useQuasar()
 const teamsStore = useTeamsStore()
