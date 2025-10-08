@@ -1,6 +1,7 @@
 #  TODO
 
 ## Main
+rename project by clicking on title
 
 ## Chart
 copy

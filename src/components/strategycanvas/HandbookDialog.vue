@@ -1,6 +1,6 @@
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
-    <q-card style="width: 700px; max-width: 80vw">
+    <q-card style="max-width: 80vw">
       <q-bar>
         <span class="text-weight-bold">Handbook</span>
         <q-space />
@@ -8,7 +8,7 @@
         <q-btn v-close-popup flat round dense icon="close" />
       </q-bar>
 
-      <q-splitter v-model="splitterModel" style="height: 500px">
+      <q-splitter v-model="splitterModel" style="min-height: 500px">
         <template #before>
           <q-tabs v-model="tab" vertical>
             <q-tab name="strategy_canvas" label="Strategy Canvas" />
@@ -144,7 +144,7 @@
                 <img src="@/assets/handbook/factor_offering.png" class="frame" />
               </p>
 
-              <h4>*About removing</h4>
+              <h4>About removing</h4>
               <p>
                 Removing does not delete the values, but only hides them from
                 the canvas. Adding the same factor or value curve, will bring

@@ -23,7 +23,7 @@
             <q-icon name="text_decrease" />
           </q-item-section>
           <q-item-section>
-            <q-slider v-model="uiStore.markerSize" label :min="0" :max="50" />
+            <q-slider v-model="uiStore.markerSize" label :min="0" :max="50" style="min-width: 100px;" />
           </q-item-section>
           <q-item-section side>
             <q-icon name="text_increase" />
