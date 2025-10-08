@@ -2,7 +2,7 @@
   <div>
     <q-input
       v-model="searchtext"
-      placeholder="Search"
+      placeholder="Global Search"
       clearable
       standout
       dense
@@ -13,7 +13,7 @@
       @keyup="keyUp"
     >
       <q-menu ref="menu" v-model="isOpen" no-parent-event no-focus auto-close>
-        <q-list v-model="isOpen" bordered separator>
+        <q-list v-model="isOpen" bordered separator style="min-width: 300px; max-height: 400px; overflow: auto">
           <template
             v-for="(project, teamId) in searchtext
               ? searchStore.results
@@ -25,10 +25,10 @@
               clickable
               dense
               dark
-              class="bg-primary"
+              class="bg-primary text-white"
               :to="{ name: 'team', params: { teamId: teamId } }"
             >
-              <q-item-label header>{{ project?.team?.name }}</q-item-label>
+              <q-item-section>{{ project?.team?.name }}</q-item-section>
             </q-item>
             <search-item v-for="item in project?.items" :key="item.$id" :item="item"></search-item>
           </template>

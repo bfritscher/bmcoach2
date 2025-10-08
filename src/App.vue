@@ -4,4 +4,8 @@
   <router-view />
 </template>
 
-<style scoped></style>
+<style>
+.text-decoration-none {
+  text-decoration: none;
+}
+</style>

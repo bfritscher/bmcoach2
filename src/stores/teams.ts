@@ -39,6 +39,7 @@ export const useTeamsStore = defineStore('teams', () => {
 
   const createTeam = async (name: string) => {
     await teamsClient.create({ teamId: ID.unique(), name })
+    await getTeams()
   }
 
   const setCurrentTeamById = async (teamId: string) => {

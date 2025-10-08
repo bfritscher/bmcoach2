@@ -15,7 +15,7 @@ export const useAccountStore = defineStore('account', () => {
 
   async function fetchAccount() {
     try {
-      session.value = await accountClient.getSession('current')
+      session.value = await accountClient.getSession({ sessionId: 'current' })
       account.value = await accountClient.get()
       teamsStore.getTeams()
       return account.value

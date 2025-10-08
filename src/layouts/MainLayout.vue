@@ -3,6 +3,7 @@
     <q-header bordered class="bg-primary text-white">
       <q-toolbar>
         <q-btn
+          v-if="!!route.meta?.leftDrawer"
           flat
           dense
           round
@@ -14,13 +15,12 @@
         <router-link
           :to="homeLink"
           class="q-toolbar__title ellipsis col-shrink text-white text-decoration-none"
-          >BM Coach</router-link
+          >BM | Designer</router-link
         >
         <search-bar />
         <div class="col-grow row no-wrap items-center">
-          <router-view v-slot="{ Component, route }" name="toolbar">
+          <router-view v-slot="{ Component }" name="toolbar">
             <component :is="Component" v-if="Component" />
-            <q-toolbar-title v-else shrink>{{ route.name }}</q-toolbar-title>
           </router-view>
         </div>
         <div v-if="accountStore.account">

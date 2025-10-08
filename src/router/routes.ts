@@ -1,4 +1,4 @@
-import { RouteRecordRaw } from 'vue-router';
+import { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -6,9 +6,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/layouts/MainLayout.vue'),
     children: [
       {
-        name: 'Home',
+        name: 'Projects List',
         path: '',
         component: () => import('@/pages/IndexPage.vue'),
+        meta: {
+          requiresAuth: true,
+        },
       },
       {
         name: 'Login',
@@ -105,4 +108,4 @@ const routes: RouteRecordRaw[] = [
   },
 ]
 
-export default routes;
+export default routes
