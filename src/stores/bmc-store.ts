@@ -6,6 +6,7 @@ import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useUIStore } from '@/stores/ui-store'
 import Note from '@/models/Note'
 import solve from '@/utils/calc'
+import { useStorageStore } from './storage'
 
 const bmcUiStore = useBmcUIStore()
 const uiStore = useUIStore()
@@ -28,6 +29,7 @@ export const VPC_CS_TYPES = ['vpc_tmp', 'pain_gain', 'job']
 
 export const useBMCStore = defineStore('canvas', () => {
   const itemsStore = useItemsStore()
+  const storageStore = useStorageStore()
 
   const currentBMCId = ref('')
   const canvas = computed(() => {
@@ -87,6 +89,21 @@ export const useBMCStore = defineStore('canvas', () => {
       logoImage: '',
     })
     currentBMCId.value = $id || ''
+  }
+
+  function canvasDelete() {
+    // delete all notes before deleting canvas
+    notes.value.forEach((note) => {
+      if (note.image) {
+        storageStore.removeFile(note.image)
+      }
+      itemsStore.removeItem(note.$id)
+    })
+    if (canvas.value.logoImage) {
+      storageStore.removeFile(canvas.value.logoImage)
+    }
+    itemsStore.removeItem(currentBMCId.value)
+    currentBMCId.value = ''
   }
 
   function loadCanvas(canvasId: string) {
@@ -181,6 +198,12 @@ export const useBMCStore = defineStore('canvas', () => {
   }
 
   function noteDelete(note: any) {
+    if (note.image) {
+      storageStore.removeFile(note.image)
+    }
+    if (bmcUiStore.layout.focusedNoteId === note.$id) {
+      bmcUiStore.layout.focusedNoteId = ''
+    }
     itemsStore.removeItem(note.$id)
     itemsStore.updateItemData(currentBMCId.value, {
       ['notes']: canvas.value.notes.filter((id: string) => id !== note.$id),
@@ -337,6 +360,7 @@ export const useBMCStore = defineStore('canvas', () => {
     notes,
     loadCanvas,
     newCanvas,
+    canvasDelete,
     updateItemData: itemsStore.updateItemData,
     notesBMC: computed(() => getNotesByTypes(BMC_TYPES)),
     notesVPC: computed(() => getNotesByTypes(VPC_TYPES)),

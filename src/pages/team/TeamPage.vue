@@ -9,6 +9,14 @@
           </div>
           <div class="col-auto row items-center q-gutter-sm">
             <q-btn
+              :to="{ name: 'home'}"
+              color="white"
+              text-color="primary"
+              icon="dashboard"
+              label="All Projects"
+              unelevated
+            />
+            <q-btn
               :to="{ name: 'teamedit', params: { teamId: teamsStore.currentTeam?.$id } }"
               color="white"
               text-color="primary"
@@ -59,6 +67,13 @@
                     <div class="ellipsis" :title="item.title">{{ item.title }}</div>
                   </q-card-section>
                   <q-card-actions>
+                    <q-btn
+                      flat
+                      color="negative"
+                      icon="delete"
+                      @click.stop.prevent="confirmDeleteChart(item)"
+                      aria-label="Delete canvas"
+                    />
                     <q-space />
                     <q-btn label="Open" color="primary" flat />
                   </q-card-actions>
@@ -129,6 +144,13 @@
                     </div>
                   </q-img>
                   <q-card-actions>
+                    <q-btn
+                      flat
+                      color="negative"
+                      icon="delete"
+                      @click.stop.prevent="confirmDeleteBmc(item)"
+                      aria-label="Delete canvas"
+                    />
                     <q-space />
                     <q-btn label="Open" color="primary" flat />
                   </q-card-actions>
@@ -151,6 +173,9 @@ import { useItemsStore } from '@/stores/items'
 import { useStorageStore } from '@/stores/storage'
 import { TYPE_SC_CHART } from '@/stores/chart-store'
 import { TYPE_BMC } from '@/stores/bmc-store'
+import { useChartStore } from '@/stores/chart-store'
+import { useBMCStore } from '@/stores/bmc-store'
+import { Dialog } from 'quasar'
 import ColorHash from 'color-hash'
 const colorHash = new ColorHash()
 import defaultBackground from '@/assets/bmc/default_bmc_logo_background.jpg'
@@ -159,6 +184,8 @@ const route = useRoute()
 const teamsStore = useTeamsStore()
 const itemsStore = useItemsStore()
 const storageStore = useStorageStore()
+const chartStore = useChartStore()
+const bmcStore = useBMCStore()
 
 type ScChartItem = { $id: string; title: string }
 type BmcItem = { $id: string; title: string; logoColor?: string; logoImage?: string }
@@ -179,6 +206,35 @@ useMeta(() => {
     titleTemplate: (title) => `Project: ${title} - BMCoach`,
   }
 })
+
+function confirmDeleteChart(item: ScChartItem) {
+  Dialog.create({
+    title: 'Delete Strategy Canvas',
+    message: `Delete "${item.title}"? This cannot be undone.`,
+    cancel: true,
+    persistent: true,
+  })
+    .onOk(() => {
+      // load then delete to ensure currentChartId is set
+      chartStore.loadChart(item.$id)
+      chartStore.deleteChart()
+    })
+    .onCancel(() => {})
+}
+
+function confirmDeleteBmc(item: BmcItem) {
+  Dialog.create({
+    title: 'Delete Business Model Canvas',
+    message: `Delete "${item.title}"? This will remove all notes and images.`,
+    cancel: true,
+    persistent: true,
+  })
+    .onOk(() => {
+      bmcStore.loadCanvas(item.$id)
+      bmcStore.canvasDelete()
+    })
+    .onCancel(() => {})
+}
 </script>
 <style>
 .item-image img {

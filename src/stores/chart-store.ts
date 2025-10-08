@@ -79,6 +79,13 @@ export const useChartStore = defineStore('chart', () => {
     currentChartId.value = $id
   }
 
+  function deleteChart() {
+    if (currentChartId.value) {
+      itemsStore.removeItem(currentChartId.value)
+      currentChartId.value = ''
+    }
+  }
+
   function copyChart() {
     // TODO
     /*
@@ -324,6 +331,7 @@ export const useChartStore = defineStore('chart', () => {
     loadChart,
     newChart,
     copyChart,
+    deleteChart,
     updateItemData: itemsStore.updateItemData,
   }
 })

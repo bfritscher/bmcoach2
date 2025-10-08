@@ -5,26 +5,7 @@
         <q-item-section avatar>
           <q-icon name="home" />
         </q-item-section>
-        <q-item-section> Team Home </q-item-section>
-      </q-item>
-
-      <q-item v-ripple clickable>
-        <q-item-section avatar title="Learn">
-          <q-icon name="school" />
-        </q-item-section>
-        <q-item-section> Learn </q-item-section>
-      </q-item>
-      <q-item v-ripple clickable>
-        <q-item-section avatar title="Play">
-          <q-icon name="games" />
-        </q-item-section>
-        <q-item-section> Play </q-item-section>
-      </q-item>
-      <q-item v-ripple clickable>
-        <q-item-section avatar title="Feedback">
-          <q-icon name="feedback" />
-        </q-item-section>
-        <q-item-section> Ideas &amp; Feedback </q-item-section>
+        <q-item-section> Project Home </q-item-section>
       </q-item>
       <q-separator spaced />
       <q-item-label header>DISPLAY OPTIONS</q-item-label>
@@ -99,19 +80,6 @@
       <q-separator spaced />
       <q-item-label header>PROJECT OPTIONS</q-item-label>
 
-      <q-item v-ripple clickable @click="printCanvas()">
-        <q-item-section avatar title="Print canvas">
-          <q-icon name="print" />
-        </q-item-section>
-        <q-item-section> Print canvas </q-item-section>
-      </q-item>
-
-      <q-item v-ripple clickable @click="duplicateCanvas()">
-        <q-item-section avatar title="Duplicate canvas">
-          <q-icon name="content_copy" />
-        </q-item-section>
-        <q-item-section> Duplicate canvas </q-item-section>
-      </q-item>
       <template v-if="layout.isEditable">
         <q-item v-ripple clickable @click.stop="rightDrawerOpen = true">
           <q-item-section avatar title="Presentation order">
@@ -171,28 +139,9 @@ function changeLabelMode() {
   canvasSettings.value.hideAllLabels = !canvasSettings.value.hideAllLabels
 }
 
-function showColors() {
-  if (layout.value.mini) {
-    layout.value.mini = false
-    canvasSettings.value.isColorsOpen = true
-  }
-}
-
 function toggleColorVisibility(value: number, colorId: number) {
   const newArray = canvasSettings.value.colorsVisibility.slice(0)
   newArray[colorId] = value
   canvasSettings.value.colorsVisibility = newArray
-}
-
-function deleteCanvas() {
-  // TODO?
-}
-
-function printCanvas() {
-  // TODO: implement
-}
-
-function duplicateCanvas() {
-  // TODO: implement
 }
 </script>

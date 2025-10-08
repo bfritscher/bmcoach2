@@ -105,6 +105,18 @@ export const useTeamsStore = defineStore('teams', () => {
     }
   }
 
+  const deleteTeam = async (teamId: string) => {
+    try {
+      await teamsClient.delete({ teamId })
+    } catch (e) {
+      Notify.create({
+        type: 'negative',
+        message: (e as AppwriteException).message,
+      })
+      throw e
+    }
+  }
+
   return {
     teams,
     teamsIndex,
@@ -118,5 +130,6 @@ export const useTeamsStore = defineStore('teams', () => {
     setCurrentTeamById,
     updateTeamName,
     removeMembership,
+    deleteTeam,
   }
 })

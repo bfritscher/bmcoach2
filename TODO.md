@@ -1,29 +1,24 @@
 #  TODO
 
 ## Main
-nav back button
 
-
+## Chart
+copy
 
 ## BMC
 [primary]
-fixbug infinite request if note expand on empty text/id
-
-handle delete canvas
-handle delete note->delete image
-duplicate canvas and files
-move canvas to other project/team (copy + delete?)
-handle delete project/team
-
-fix description reactivity notesoption
-test search vpc
-
-[checks]
-move all store references (dispatch)
-store.dispatch
-//TODO
+- fix presentation order
+- fix bug infinite request if note expand on empty text/id
+- fix description reactivity notesoption
+- test search vpc
 
 [other]
-menu
-game
-export png
+- duplicate canvas and files
+- move canvas to other project/team (copy + delete?)
+- game
+- export png
+
+
+[Data migration]
+import users? email vs oauth
+import canvases -> create team -> import data convert media?
