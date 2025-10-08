@@ -12,91 +12,79 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, reactive } from 'vue'
 import { gsap } from 'gsap'
-import { mapActions } from 'pinia'
 import { useBMCStore } from '@/stores/bmc-store'
+import { storeToRefs } from 'pinia'
 
-export default {
-  emits: ['won'],
-  data() {
-    return {
-      gameStats: {
-        total: 0,
-        correct: 0,
-        checks: 0,
+const emit = defineEmits<{
+  won: []
+}>()
+
+const bmcStore = useBMCStore()
+const { notesBMC, canvas } = storeToRefs(bmcStore)
+const { canvasInfoUpdate } = bmcStore
+
+const gameStats = reactive({
+  total: 0,
+  correct: 0,
+  checks: 0,
+})
+const cssUpDown = ref('')
+
+function fixed(value: number, n: number) {
+  if (!isNaN(value)) {
+    return Number(value).toFixed(n || 0)
+  }
+  return value
+}
+
+function gameCheck() {
+  const stats = notesBMC.value
+    .filter((n: any) => n.isGame)
+    .reduce(
+      (s: any, note: any) => {
+        if (note.type === note.type_saved) {
+          s.correct += 1
+        }
+        s.total += 1
+        return s
       },
-      cssUpDown: '',
-    }
-  },
-  // TODO fix vuex
-  computed: {
-    /*
-    ...mapGetters(['notesBMC']),
-    ...mapState({
-      canvas: (state) => state.canvas,
-    }),
-    */
-  },
-  methods: {
-    ...mapActions(useBMCStore, ['canvasInfoUpdate']),
-    fixed(value, n) {
-      if (!isNaN(value)) {
-        return Number(value).toFixed(n || 0)
-      }
-      return value
-    },
-    gameCheck() {
-      const stats = this.notesBMC
-        .filter((n) => n.isGame)
-        .reduce(
-          (s, note) => {
-            if (note.type === note.type_saved) {
-              s.correct += 1
-            }
-            s.total += 1
-            return s
-          },
-          {
-            correct: 0,
-            total: 0,
-          },
-        )
-      if (stats.correct === stats.total) {
-        this.$emit('won')
-        this.canvasInfoUpdate({ isGame: false, gameCompleted: new Date() })
-        this.notesBMC.forEach((note) => {
-          this.$store.dispatch('NOTE_UPDATE', {
-            note,
-            changes: {
-              isGame: false,
-            },
-          })
-        })
-      } else {
-        this.gameStats.total = stats.total
-        gsap.to(this.gameStats, {
-          duration: 0.5,
-          correct: stats.correct,
-          checks: this.canvas.info.gameNbChecks,
-          onStart: () => {
-            if (stats.correct > this.gameStats.correct) {
-              this.cssUpDown = 'up'
-            }
-            if (stats.correct < this.gameStats.correct) {
-              this.cssUpDown = 'down'
-            }
-          },
-          onComplete: () => {
-            this.cssUpDown = ''
-          },
-        })
-        this.canvasInfoUpdate({
-          gameNbChecks: (this.canvas.info.gameNbChecks || 0) + 1,
-        })
-      }
-    },
-  },
+      {
+        correct: 0,
+        total: 0,
+      },
+    )
+  if (stats.correct === stats.total) {
+    emit('won')
+    canvasInfoUpdate({ isGame: false, gameCompleted: new Date() })
+    notesBMC.value.forEach((note: any) => {
+      // TODO: fix this to use proper note update
+      note.isGame = false
+    })
+  } else {
+    gameStats.total = stats.total
+    gsap.to(gameStats, {
+      duration: 0.5,
+      correct: stats.correct,
+      checks: canvas.value.gameNbChecks || 0,
+      onStart: () => {
+        if (stats.correct > gameStats.correct) {
+          cssUpDown.value = 'up'
+        }
+        if (stats.correct < gameStats.correct) {
+          cssUpDown.value = 'down'
+        }
+      },
+      onComplete: () => {
+        cssUpDown.value = ''
+      },
+    })
+    canvasInfoUpdate({
+      gameNbChecks: (canvas.value.gameNbChecks || 0) + 1,
+    })
+  }
 }
 </script>
 

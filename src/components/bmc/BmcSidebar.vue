@@ -123,72 +123,76 @@
     </q-list>
   </div>
 </template>
-<script>
-import { COLORS_MATERIAL, COLORS_MATERIAL_DARK } from '/src/utils/constants'
-import { mapState, mapWritableState, mapActions } from 'pinia'
+<script setup lang="ts">
+import { computed } from 'vue'
+import { COLORS_MATERIAL, COLORS_MATERIAL_DARK } from '@/utils/constants'
+import { storeToRefs } from 'pinia'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useBMCStore } from '@/stores/bmc-store'
 import { useUIStore } from '@/stores/ui-store'
 
-export default {
-  name: 'BmcSidebar',
-  components: {},
-  data() {
-    return {
-      COLORS_MATERIAL,
-      COLORS_MATERIAL_DARK,
-      showDialogSettings: false,
-      showConfirmRemoveUser: false,
-      showConfirmDeleteInvitation: false,
-      showDialogInvite: false,
-      inviteEmail: '',
-    }
-  },
-  computed: {
-    ...mapWritableState(useUIStore, ['rightDrawerOpen']),
-    ...mapState(useBmcUIStore, ['layout']),
-    ...mapState(useBMCStore, ['canvasSettings', 'canvas']),
-    colorModeSwitch() {
-      return this.canvasSettings.hideColors
-        ? { text: 'Show colors', icon: 'invert_colors' }
-        : { text: 'Hide colors', icon: 'invert_colors_off' }
-    },
-    listModeSwitch() {
-      return this.canvasSettings.listMode
-        ? { text: 'Display as sticky notes', icon: 'widgets' }
-        : { text: 'Display as lists', icon: 'list' }
-    },
-    labelModeSwitch() {
-      return this.canvasSettings.hideAllLabels
-        ? { text: 'Show labels', icon: 'label' }
-        : { text: 'Hide all labels', icon: 'label_outline' }
-    },
-  },
-  methods: {
-    ...mapActions(useBMCStore, ['presentationStart']),
-    changeListMode() {
-      this.canvasSettings.listMode = !this.canvasSettings.listMode
-    },
-    changeColorMode() {
-      this.canvasSettings.hideColors = !this.canvasSettings.hideColors
-    },
-    changeLabelMode() {
-      this.canvasSettings.hideAllLabels = !this.canvasSettings.hideAllLabels
-    },
-    showColors() {
-      if (this.layout.mini) {
-        this.layout.mini = false
-        this.canvasSettings.isColorsOpen = true
-      }
-    },
-    toggleColorVisibility(value, colorId) {
-      const newArray = this.canvasSettings.colorsVisibility.slice(0)
-      newArray[colorId] = value
-      this.canvasSettings.colorsVisibility = newArray
-    },
-    deleteCanvas() {
-      // TODO?
-    },
-  },
+const uiStore = useUIStore()
+const { rightDrawerOpen } = storeToRefs(uiStore)
+
+const bmcUiStore = useBmcUIStore()
+const { layout } = storeToRefs(bmcUiStore)
+
+const bmcStore = useBMCStore()
+const { canvasSettings, canvas } = storeToRefs(bmcStore)
+const { presentationStart } = bmcStore
+
+const colorModeSwitch = computed(() => {
+  return canvasSettings.value.hideColors
+    ? { text: 'Show colors', icon: 'invert_colors' }
+    : { text: 'Hide colors', icon: 'invert_colors_off' }
+})
+
+const listModeSwitch = computed(() => {
+  return canvasSettings.value.listMode
+    ? { text: 'Display as sticky notes', icon: 'widgets' }
+    : { text: 'Display as lists', icon: 'list' }
+})
+
+const labelModeSwitch = computed(() => {
+  return canvasSettings.value.hideAllLabels
+    ? { text: 'Show labels', icon: 'label' }
+    : { text: 'Hide all labels', icon: 'label_outline' }
+})
+
+function changeListMode() {
+  canvasSettings.value.listMode = !canvasSettings.value.listMode
+}
+
+function changeColorMode() {
+  canvasSettings.value.hideColors = !canvasSettings.value.hideColors
+}
+
+function changeLabelMode() {
+  canvasSettings.value.hideAllLabels = !canvasSettings.value.hideAllLabels
+}
+
+function showColors() {
+  if (layout.value.mini) {
+    layout.value.mini = false
+    canvasSettings.value.isColorsOpen = true
+  }
+}
+
+function toggleColorVisibility(value: number, colorId: number) {
+  const newArray = canvasSettings.value.colorsVisibility.slice(0)
+  newArray[colorId] = value
+  canvasSettings.value.colorsVisibility = newArray
+}
+
+function deleteCanvas() {
+  // TODO?
+}
+
+function printCanvas() {
+  // TODO: implement
+}
+
+function duplicateCanvas() {
+  // TODO: implement
 }
 </script>

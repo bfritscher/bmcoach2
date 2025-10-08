@@ -22,7 +22,7 @@
                   <q-item
                     v-for="note in notesVP"
                     :key="note.$id"
-                    :class="`bg-${COLORS_MATERIAL_DARK[note.colors[0]]}`"
+                    :class="`bg-${COLORS_MATERIAL_DARK[note.colors?.[0] || 0]}`"
                     clickable
                     @click="LAYOUT_UPDATE({ selectedVP: note })"
                   >
@@ -75,7 +75,7 @@
                   <q-item
                     v-for="note in notesCS"
                     :key="note.$id"
-                    :class="`bg-${COLORS_MATERIAL_DARK[note.colors[0]]}`"
+                    :class="`bg-${COLORS_MATERIAL_DARK[note.colors?.[0] || 0]}`"
                     clickable
                     @click="LAYOUT_UPDATE({ selectedCS: note })"
                   >
@@ -122,7 +122,7 @@
             :value="n"
             class="note-vpc"
             :class="{ 'vpc-both': cs && vp }"
-            :parent="$refs.paper"
+            :parent="paper!"
           ></note>
         </div>
       </div>
@@ -130,7 +130,8 @@
   </transition>
 </template>
 
-<script>
+<script setup lang="ts">
+import { useTemplateRef, computed, watch, nextTick, getCurrentInstance } from 'vue'
 import Note from '@/components/bmc/Note.vue'
 import Zone from '@/components/bmc/Zone.vue'
 import ImageZone from '@/components/bmc/ImageZone.vue'
@@ -139,131 +140,127 @@ import { COLORS_MATERIAL_DARK, ICONS } from '@/utils/constants'
 import { VPC_VP_TYPES, VPC_CS_TYPES } from '@/stores/bmc-store'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useBMCStore } from '@/stores/bmc-store'
-import { mapState, mapActions } from 'pinia'
+import { storeToRefs } from 'pinia'
+import type { BMCNote } from '@/components/models'
 
-export default {
-  name: 'VpcCanvas',
-  components: {
-    Note,
-    Zone,
-    ImageZone,
-  },
-  data() {
-    return {
-      COLORS_MATERIAL_DARK,
-      ICONS,
+const bmcUiStore = useBmcUIStore()
+const { layout } = storeToRefs(bmcUiStore)
+
+const bmcStore = useBMCStore()
+const { notesVPC, notesVPCvp, notesVPCcs, canvasSettings } = storeToRefs(bmcStore)
+const { noteCreate, getNotesByTypes } = bmcStore
+
+const vpc = useTemplateRef('vpc')
+const paper = useTemplateRef('paper')
+const instance = getCurrentInstance()
+
+const vp = computed(() => layout.value.selectedVP)
+const cs = computed(() => layout.value.selectedCS)
+const showVPC = computed(() => layout.value.showVPC)
+
+const notesVPCfiltered = computed(() => {
+  let notes: BMCNote[] = []
+  if (vp.value && cs.value) {
+    notes = notesVPC.value.filter(
+      (note: any) => note.parent === vp.value.$id || note.parent === cs.value.$id || !note.parent,
+    )
+  } else if (cs.value) {
+    notes = notesVPCcs.value.filter((note: any) => note.parent === cs.value.$id || !note.parent)
+  } else if (vp.value) {
+    notes = notesVPCvp.value.filter((note: any) => note.parent === vp.value.$id || !note.parent)
+  }
+  return notes
+})
+
+const notesCS = computed(() => {
+  const list = getNotesByTypes('cs')
+  return list.filter((note: any) => note.$id !== cs.value?.$id)
+})
+
+const notesVP = computed(() => {
+  const list = getNotesByTypes('vp')
+  return list.filter((note: any) => note.$id !== vp.value?.$id)
+})
+
+// Watch vp
+watch(
+  vp,
+  (val, oldVal) => {
+    if (vpc.value) {
+      if (val) {
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${val.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${val.top}%`)
+        LAYOUT_UPDATE({ showVPC: true })
+      } else if (oldVal) {
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
+        if (!cs.value && showVPC.value) {
+          nextTick(() => {
+            LAYOUT_UPDATE({ showVPC: false })
+          })
+        }
+      }
     }
-  },
-  computed: {
-    ...mapState(useBmcUIStore, ['layout']),
-    ...mapState(useBMCStore, [
-      'notesVPC',
-      'notesVPCvp',
-      'notesVPCcs',
-      'getNotesByTypes',
-      'canvasSettings',
-    ]),
-    vp() {
-      return this.layout.selectedVP
-    },
-    cs() {
-      return this.layout.selectedCS
-    },
-    showVPC() {
-      return this.layout.showVPC
-    },
-    notesVPCfiltered() {
-      let notes = []
-      if (this.vp && this.cs) {
-        notes = this.notesVPC.filter(
-          (note) => note.parent === this.vp.$id || note.parent === this.cs.$id || !note.parent,
-        )
-      } else if (this.cs) {
-        notes = this.notesVPCcs.filter((note) => note.parent === this.cs.$id || !note.parent)
-      } else if (this.vp) {
-        notes = this.notesVPCvp.filter((note) => note.parent === this.vp.$id || !note.parent)
-      }
-      return notes
-    },
-    notesCS() {
-      const list = this.getNotesByTypes('cs')
-      return list.filter((note) => note.$id !== this.cs?.$id)
-    },
-    notesVP() {
-      const list = this.getNotesByTypes('vp')
-      return list.filter((note) => note.$id !== this.vp?.$id)
-    },
-  },
-  watch: {
-    // TODO: refactor?
-    vp(val, oldVal) {
+  }
+)
+
+// Watch cs
+watch(
+  cs,
+  (val, oldVal) => {
+    if (vpc.value) {
       if (val) {
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-x', `${val.left}%`)
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-y', `${val.top}%`)
-        this.LAYOUT_UPDATE({ showVPC: true })
-      } else {
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
-        if (!this.cs && this.showVPC) {
-          this.$nextTick(() => {
-            this.LAYOUT_UPDATE({ showVPC: false })
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${val.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${val.top}%`)
+        LAYOUT_UPDATE({ showVPC: true })
+      } else if (oldVal) {
+        vpc.value.$el.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
+        vpc.value.$el.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
+        if (!vp.value && showVPC.value) {
+          nextTick(() => {
+            LAYOUT_UPDATE({ showVPC: false })
           })
         }
       }
-    },
-    cs(val, oldVal) {
-      if (val) {
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-x', `${val.left}%`)
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-y', `${val.top}%`)
-        this.LAYOUT_UPDATE({ showVPC: true })
-      } else {
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-x', `${oldVal.left}%`)
-        this.$refs.vpc.$el.style.setProperty('--vpc-source-y', `${oldVal.top}%`)
-        if (!this.vp && this.showVPC) {
-          this.$nextTick(() => {
-            this.LAYOUT_UPDATE({ showVPC: false })
-          })
-        }
-      }
-    },
-  },
-  methods: {
-    ...mapActions(useBMCStore, ['noteCreate']),
-    addNote(e) {
-      const offset = totalOffset(this.$refs.paper)
-      const noteCenter = {
-        x: this.$refs.paper.offsetWidth / 15,
-        y: 20,
-      }
-      const x = e.x - noteCenter.x - offset.left
-      const y = e.y - noteCenter.y - offset.top
+    }
+  }
+)
 
-      const note = {
-        left: x / (this.$refs.paper.offsetWidth / 100),
-        top: y / (this.$refs.paper.offsetHeight / 100),
-        listLeft: x / (this.$refs.paper.offsetWidth / 100),
-        listTop: y / (this.$refs.paper.offsetHeight / 100),
-        type: 'vpc_tmp',
-        colors: this.canvasSettings.lastUsedColors,
-        image: e.image,
-      }
+function addNote(e: any) {
+  if (!paper.value) return
+  const offset = totalOffset(paper.value)
+  const noteCenter = {
+    x: paper.value.offsetWidth / 15,
+    y: 20,
+  }
+  const x = e.x - noteCenter.x - offset.left
+  const y = e.y - noteCenter.y - offset.top
 
-      if (e.target.classList.contains('zone')) {
-        note.type = e.target.getAttribute('id')
-        // ignore tmp which is at position 0
-        if (VPC_VP_TYPES.indexOf(note.type) > 0) {
-          note.parent = this.vp.$id
-        }
-        if (VPC_CS_TYPES.indexOf(note.type) > 0) {
-          note.parent = this.cs.$id
-        }
-      }
-      this.noteCreate(note)
-    },
-    LAYOUT_UPDATE(payload) {
-      Object.assign(this.layout, payload)
-    },
-  },
+  const note: any = {
+    left: x / (paper.value.offsetWidth / 100),
+    top: y / (paper.value.offsetHeight / 100),
+    listLeft: x / (paper.value.offsetWidth / 100),
+    listTop: y / (paper.value.offsetHeight / 100),
+    type: 'vpc_tmp',
+    colors: canvasSettings.value.lastUsedColors,
+    image: e.image,
+  }
+
+  if (e.target.classList.contains('zone')) {
+    note.type = e.target.getAttribute('id')
+    // ignore tmp which is at position 0
+    if (VPC_VP_TYPES.indexOf(note.type) > 0) {
+      note.parent = vp.value.$id
+    }
+    if (VPC_CS_TYPES.indexOf(note.type) > 0) {
+      note.parent = cs.value.$id
+    }
+  }
+  noteCreate(note)
+}
+
+function LAYOUT_UPDATE(payload: any) {
+  Object.assign(layout.value, payload)
 }
 </script>
 

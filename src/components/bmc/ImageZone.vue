@@ -54,214 +54,235 @@
   </div>
 </template>
 
-<script>
-import { nextTick } from 'vue'
+<script setup lang="ts">
+import { ref, nextTick } from 'vue'
 import ColorThief from 'colorthief'
 import { totalOffset } from '@/utils/dom'
 import { useStorageStore } from '@/stores/storage'
-import { mapActions } from 'pinia'
 
-export default {
-  name: 'ImageZone',
-  props: {
-    maxWidth: {
-      default: 400,
-      type: Number,
-    },
-    maxHeight: {
-      default: 300,
-      type: Number,
-    },
-    image: {
-      default: '',
-      type: String,
-    },
-    color: {
-      default: 'transparent',
-      type: String,
-    },
-    allowClick: {
-      default: true,
-      type: Boolean,
-    },
+const props = withDefaults(
+  defineProps<{
+    maxWidth?: number
+    maxHeight?: number
+    image?: string
+    color?: string
+    allowClick?: boolean
+  }>(),
+  {
+    maxWidth: 400,
+    maxHeight: 300,
+    image: '',
+    color: 'transparent',
+    allowClick: true,
+  }
+)
+
+const emit = defineEmits<{
+  'update:color': [color: string | null]
+  'update:image': [image: string | null]
+  'image-drop': [event: any]
+}>()
+
+const storageStore = useStorageStore()
+const { uploadFile, removeFile, getFileUrl } = storageStore
+
+const hasError = ref(false)
+const dropTarget = ref(false)
+const errorMsg = ref('')
+const maxSize = 10240
+const width = ref(0)
+const height = ref(0)
+const left = ref('')
+const top = ref('')
+const previewColor = ref('transparent')
+const lastEvent = ref<any>(null)
+const showCanvas = ref(false)
+const fileinput = ref<HTMLInputElement>()
+const canvas = ref<HTMLCanvasElement>()
+
+const lang = {
+  hint: 'Drop image here or click to upload.',
+  error: {
+    notSupported: 'Browser not supported, please use IE10+ or other browsers',
+    onlyImg: 'Only images are supported',
+    outOfSize: 'Image exceeds size limit: ',
   },
-  emits: ['update:color', 'update:image', 'image-drop'],
-  data() {
-    return {
-      hasError: false,
-      dropTarget: false,
-      errorMsg: '',
-      maxSize: 10240,
-      width: 0,
-      height: 0,
-      left: '',
-      top: '',
-      previewColor: 'transparent',
-      lastEvent: null,
-      showCanvas: false,
-      lang: {
-        hint: 'Drop image here or click to upload.',
-        error: {
-          notSupported: 'Browser not supported, please use IE10+ or other browsers',
-          onlyImg: 'Only images are supported',
-          outOfSize: 'Image exceeds size limit: ',
-        },
-      },
+}
+
+function handleClick(e: MouseEvent) {
+  if (props.allowClick) {
+    e.preventDefault()
+    e.stopPropagation()
+    fileinput.value?.click()
+  }
+  return true
+}
+
+function handleChange(e: Event) {
+  const target = e.target as HTMLInputElement
+  const dataTransfer = (e as DragEvent).dataTransfer
+  const files = target.files || dataTransfer?.files
+  reset()
+  dropTarget.value = false
+  lastEvent.value = e
+  if (files && files.length > 0 && files[0] && checkFile(files[0])) {
+    setSourceImg(files[0])
+  } else if (dataTransfer) {
+    const imageUrl = dataTransfer.getData('text/html')
+    const extracSrc = /src="?([^"\s]+)"?\s*/
+    const url = extracSrc.exec(imageUrl)
+    if (url && url[1]) {
+      loadImage(url[1])
     }
-  },
-  methods: {
-    ...mapActions(useStorageStore, ['uploadFile', 'removeFile', 'getFileUrl']),
-    handleClick(e) {
-      if (this.allowClick) {
-        e.preventDefault()
-        e.stopPropagation()
-        this.$refs.fileinput.click()
-      }
-      return true
-    },
-    handleChange(e) {
-      const files = e.target.files || e.dataTransfer.files
-      this.reset()
-      this.dropTarget = false
-      this.lastEvent = e
-      if (files.length > 0 && this.checkFile(files[0])) {
-        this.setSourceImg(files[0])
-      } else if (e.dataTransfer) {
-        const imageUrl = e.dataTransfer.getData('text/html')
-        const extracSrc = /src="?([^"\s]+)"?\s*/
-        const url = extracSrc.exec(imageUrl)
-        if (url) {
-          this.loadImage(url[1])
+  }
+}
+
+function checkFile(file: File) {
+  if (file.type.indexOf('image') === -1) {
+    hasError.value = true
+    errorMsg.value = lang.error.onlyImg
+    return false
+  }
+
+  if (file.size / 1024 > maxSize) {
+    hasError.value = true
+    errorMsg.value = `${lang.error.outOfSize} ${maxSize}kb`
+    return false
+  }
+  return true
+}
+
+function setSourceImg(file: File) {
+  const fr = new FileReader()
+  fr.onload = (e) => {
+    loadImage((e.target as FileReader).result as string)
+  }
+  fr.readAsDataURL(file)
+}
+
+function loadImage(src: string) {
+  const img = new Image()
+  img.crossOrigin = 'use-credentials'
+  img.onload = () => {
+    width.value = img.naturalWidth
+    height.value = img.naturalHeight
+    const colorThief = new ColorThief()
+    const [r, g, b] = colorThief.getColor(img)
+    emit('update:color', `rgb(${r}, ${g}, ${b})`)
+    resize(img)
+  }
+  img.src = src
+}
+
+function displayColorPicker() {
+  const img = new Image()
+  img.crossOrigin = 'use-credentials'
+  img.onload = () => {
+    width.value = img.naturalWidth
+    height.value = img.naturalHeight
+    nextTick(() => {
+      if (canvas.value) {
+        const ctx = canvas.value.getContext('2d')
+        if (ctx) {
+          ctx.clearRect(0, 0, width.value, height.value)
+          ctx.drawImage(img, 0, 0, width.value, height.value)
+          showCanvas.value = true
+          left.value = `calc(50% - ${width.value / 2}px)`
+          top.value = `calc(50% - ${height.value / 2}px)`
         }
       }
-    },
-    checkFile(file) {
-      if (file.type.indexOf('image') === -1) {
-        this.hasError = true
-        this.errorMsg = this.lang.error.onlyImg
-        return false
-      }
+    })
+  }
+  img.src = getFileUrl(props.image)
+}
 
-      if (file.size / 1024 > this.maxSize) {
-        this.hasError = true
-        this.errorMsg = `${this.lang.error.outOfSize} ${this.maxSize}kb`
-        return false
-      }
-      return true
-    },
-    setSourceImg(file) {
-      const fr = new FileReader()
-      fr.onload = (e) => {
-        this.loadImage(e.target.result)
-      }
-      fr.readAsDataURL(file)
-    },
-    loadImage(src) {
-      const img = new Image()
-      img.crossOrigin = 'use-credentials'
-      img.onload = () => {
-        this.width = img.naturalWidth
-        this.height = img.naturalHeight
-        const colorThief = new ColorThief()
-        const [r, g, b] = colorThief.getColor(img)
-        this.$emit('update:color', `rgb(${r}, ${g}, ${b})`)
-        this.resize(img)
-      }
-      img.src = src
-    },
-    displayColorPicker() {
-      const img = new Image()
-      img.crossOrigin = 'use-credentials'
-      img.onload = () => {
-        this.width = img.naturalWidth
-        this.height = img.naturalHeight
-        nextTick(() => {
-          const canvas = this.$refs.canvas
-          const ctx = canvas.getContext('2d')
-          ctx.clearRect(0, 0, this.width, this.height)
-          ctx.drawImage(img, 0, 0, this.width, this.height)
-          this.showCanvas = true
-          this.left = `calc(50% - ${this.width / 2}px)`
-          this.top = `calc(50% - ${this.height / 2}px)`
-        })
-      }
-      img.src = this.getFileUrl(this.image)
-    },
-    pickColor(e, save) {
-      // getting user coordinates
-      const offset = totalOffset(this.$refs.canvas)
-      const x = e.pageX - offset.left
-      const y = e.pageY - offset.top
-      // getting image data and RGB values
-      const [r, g, b] = this.$refs.canvas.getContext('2d').getImageData(x, y, 1, 1).data
-      const rgb = `rgb(${r}, ${g}, ${b})`
-      this.previewColor = rgb
-      if (save) {
-        this.$emit('update:color', rgb)
-        this.showCanvas = false
-      }
-    },
-    resize(img) {
-      const maxRatio = this.maxWidth / this.maxHeight
-      const ratio = this.width / this.height
-      if (this.width <= this.maxWidth && this.height <= this.maxHeight) {
-        this.width += 20
-        this.height += 20
-      }
-      if (
-        (ratio > 1 && maxRatio > 1) ||
-        (ratio > 1 && maxRatio < 1) ||
-        (ratio === 1 && maxRatio < 1) ||
-        (ratio > 1 && maxRatio === 1)
-      ) {
-        this.width = this.maxWidth
-        this.height = this.maxWidth / ratio
-      } else if (
-        (ratio < 1 && maxRatio < 1) ||
-        (ratio < 1 && maxRatio > 1) ||
-        (ratio === 1 && maxRatio > 1) ||
-        (ratio < 1 && maxRatio === 1)
-      ) {
-        this.width = this.maxHeight * ratio
-        this.height = this.maxHeight
-      } else {
-        this.width = this.maxWidth
-        this.height = this.maxHeight
-      }
-      nextTick(() => {
-        const canvas = this.$refs.canvas
-        const ctx = canvas.getContext('2d')
-        ctx.clearRect(0, 0, this.width, this.height)
-        ctx.drawImage(img, 10, 10, this.width - 20, this.height - 20)
-        canvas.toBlob((blob) => {
-          let file = new File([blob], 'image.png', { type: 'image/png' })
-          this.setNewImage(file)
+function pickColor(e: MouseEvent, save: boolean) {
+  if (!canvas.value) return
+  // getting user coordinates
+  const offset = totalOffset(canvas.value)
+  const x = e.pageX - offset.left
+  const y = e.pageY - offset.top
+  // getting image data and RGB values
+  const ctx = canvas.value.getContext('2d')
+  if (ctx) {
+    const [r, g, b] = ctx.getImageData(x, y, 1, 1).data
+    const rgb = `rgb(${r}, ${g}, ${b})`
+    previewColor.value = rgb
+    if (save) {
+      emit('update:color', rgb)
+      showCanvas.value = false
+    }
+  }
+}
+
+function resize(img: HTMLImageElement) {
+  const maxRatio = props.maxWidth / props.maxHeight
+  const ratio = width.value / height.value
+  if (width.value <= props.maxWidth && height.value <= props.maxHeight) {
+    width.value += 20
+    height.value += 20
+  }
+  if (
+    (ratio > 1 && maxRatio > 1) ||
+    (ratio > 1 && maxRatio < 1) ||
+    (ratio === 1 && maxRatio < 1) ||
+    (ratio > 1 && maxRatio === 1)
+  ) {
+    width.value = props.maxWidth
+    height.value = props.maxWidth / ratio
+  } else if (
+    (ratio < 1 && maxRatio < 1) ||
+    (ratio < 1 && maxRatio > 1) ||
+    (ratio === 1 && maxRatio > 1) ||
+    (ratio < 1 && maxRatio === 1)
+  ) {
+    width.value = props.maxHeight * ratio
+    height.value = props.maxHeight
+  } else {
+    width.value = props.maxWidth
+    height.value = props.maxHeight
+  }
+  nextTick(() => {
+    if (canvas.value) {
+      const ctx = canvas.value.getContext('2d')
+      if (ctx) {
+        ctx.clearRect(0, 0, width.value, height.value)
+        ctx.drawImage(img, 10, 10, width.value - 20, height.value - 20)
+        canvas.value.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], 'image.png', { type: 'image/png' })
+            setNewImage(file)
+          }
         }, 'image/png')
-      })
-    },
-    setNewImage(file) {
-      const id = this.uploadFile(file)
-      this.$emit('update:image', id)
-      if (this.lastEvent && this.lastEvent.type === 'drop') {
-        this.lastEvent.image = id
-        this.$emit('image-drop', this.lastEvent)
       }
-    },
-    reset() {
-      this.hasError = false
-      this.errorMsg = ''
-      this.lastEvent = null
-      if (this.image) {
-        this.removeFile(this.image)
-      }
-      this.$emit('update:image', null)
-      this.$emit('update:color', null)
-      if (typeof FormData !== 'function') {
-        this.hasError = true
-        this.errorMsg = this.lang.error.notSupported
-      }
-    },
-  },
+    }
+  })
+}
+
+function setNewImage(file: File) {
+  const id = uploadFile(file, undefined)
+  if (id) {
+    emit('update:image', id)
+    if (lastEvent.value && lastEvent.value.type === 'drop') {
+      lastEvent.value.image = id
+      emit('image-drop', lastEvent.value)
+    }
+  }
+}
+
+function reset() {
+  hasError.value = false
+  errorMsg.value = ''
+  lastEvent.value = null
+  if (props.image) {
+    removeFile(props.image)
+  }
+  emit('update:image', null)
+  emit('update:color', null)
+  if (typeof FormData !== 'function') {
+    hasError.value = true
+    errorMsg.value = lang.error.notSupported
+  }
 }
 </script>
 
