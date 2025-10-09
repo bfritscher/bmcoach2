@@ -65,7 +65,13 @@ export const useBMCStore = defineStore('canvas', () => {
 
   const notes = computed(() => {
     return canvas.value.notes
-      .map((noteId: string) => itemsStore.typeIndex[TYPE_BMC_NOTE][noteId] as BMCNote)
+      .map((noteId: string) => {
+        const n = itemsStore.typeIndex[TYPE_BMC_NOTE][noteId] as BMCNote
+        if(!Array.isArray(n.colors)) {
+          n.colors = Object.keys(n.colors).map((k) => parseInt(k))
+        }
+        return n
+      })
       .filter((note: any) => note) as BMCNote[]
   })
 

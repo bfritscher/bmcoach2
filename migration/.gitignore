@@ -1,0 +1,6 @@
+data.json
+users.json
+migration-state.json
+logos
+node_modules
+.env

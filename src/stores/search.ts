@@ -22,7 +22,7 @@ export const useSearchStore = defineStore('search', () => {
         query.push(Query.cursorAfter(lastId))
       }
       const response = await databases.listDocuments({
-        databaseId: 'bmcoach',
+        databaseId: 'production',
         collectionId: 'items',
         queries: query,
       })
@@ -54,7 +54,7 @@ export const useSearchStore = defineStore('search', () => {
 
   async function search(text: string) {
     const query = [Query.search('data', text)]
-    const response = await databases.listDocuments('bmcoach', 'items', query)
+    const response = await databases.listDocuments('production', 'items', query)
     results.value = groupByTeam(parse(response.documents))
   }
 

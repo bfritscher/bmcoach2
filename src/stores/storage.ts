@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid'
 import { Permission, Role } from 'appwrite'
 import { useTeamsStore } from './teams'
 
-const APP_STORAGE_BUCKET = 'bmcoach'
+const APP_STORAGE_BUCKET = 'production'
 
 export const useStorageStore = defineStore('storage', () => {
   const teamsStore = useTeamsStore()
@@ -32,10 +32,11 @@ export const useStorageStore = defineStore('storage', () => {
   }
 
   function getFileUrl(fileId: string) {
-    return storage.getFilePreview({
-      bucketId: APP_STORAGE_BUCKET,
-      fileId,
-    })
+    if (!fileId) return
+    return storage.getFilePreview(
+      APP_STORAGE_BUCKET,
+      fileId
+    )
   }
 
   return {
