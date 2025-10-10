@@ -4,13 +4,14 @@ import { client, databases } from '@/api/appwrite'
 import { v4 as uuid } from 'uuid'
 import { Permission, Query, Role, Models } from 'appwrite'
 import { useTeamsStore } from './teams'
+import { APPWRITE_DATABASE_ID } from '@/utils/constants'
 
 type ItemData = Record<string, unknown>
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TypeBucket = Record<string, any>
 
-const APPWRITE_DATABASE_ID = 'production'
+
 
 export interface Item {
   $id: string
@@ -150,7 +151,7 @@ export const useItemsStore = defineStore('items', () => {
         if (!item) {
           return
         }
-        return databases.updateDocument('production', 'items', id, {
+        return databases.updateDocument(APPWRITE_DATABASE_ID, 'items', id, {
           data: JSON.stringify(item.data),
         })
       }),
@@ -230,7 +231,7 @@ export const useItemsStore = defineStore('items', () => {
       Permission.delete(Role.team(teamId, 'owner')),
     ]
     databases.createDocument({
-      databaseId: 'production',
+      databaseId: APPWRITE_DATABASE_ID,
       collectionId: 'items',
       documentId: $id,
       data: { ...localPayload, data: JSON.stringify(data) },
@@ -247,7 +248,7 @@ export const useItemsStore = defineStore('items', () => {
     removeFromCurrentBucket(item)
     delete itemsIndex.value[id]
     pendingUpdateIds.delete(id)
-    return databases.deleteDocument('production', 'items', id)
+    return databases.deleteDocument(APPWRITE_DATABASE_ID, 'items', id)
   }
 
   // TODO offline handle?
@@ -264,7 +265,7 @@ export const useItemsStore = defineStore('items', () => {
       return
     }
 
-    databases.updateDocument('production', 'items', id, {
+    databases.updateDocument(APPWRITE_DATABASE_ID, 'items', id, {
       data: JSON.stringify(item.data),
     })
   }
@@ -285,14 +286,8 @@ export const useItemsStore = defineStore('items', () => {
       if (lastId) {
         query.push(Query.cursorAfter(lastId))
       }
-      console.log('Fetching items for project', projectId, lastId)
-      // instrument timming
-      let start = performance.now()
-      const response = await databases.listDocuments<AppwriteItem>('production', 'items', query)
-      let end = performance.now()
-      console.log(`Fetched ${response.documents.length} items in ${end - start} ms`)
-      console.log(response.total)
-      start = performance.now()
+      const response = await databases.listDocuments<AppwriteItem>(APPWRITE_DATABASE_ID, 'items', query)
+
       response.documents.forEach((payload) => {
         const parsedData = JSON.parse(payload.data)
         const normalized = normalizeData(parsedData)
@@ -323,8 +318,7 @@ export const useItemsStore = defineStore('items', () => {
         }
         ;(localTypeIndex[item.type] as TypeBucket)[item.$id] = item.data
       })
-      end = performance.now()
-      console.log(`Processed ${response.documents.length} items in ${end - start} ms`)
+
       if (response.documents.length > 0) {
         lastId = response.documents[response.documents.length - 1]?.$id
       } else {

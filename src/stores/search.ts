@@ -5,6 +5,8 @@ import { databases } from '@/api/appwrite'
 import { useTeamsStore } from './teams'
 import { TYPE_SC_CHART } from '@/stores/chart-store'
 import { TYPE_BMC } from '@/stores/bmc-store'
+import { APPWRITE_DATABASE_ID } from '@/utils/constants'
+
 export const useSearchStore = defineStore('search', () => {
   const teamsStore = useTeamsStore()
 
@@ -22,7 +24,7 @@ export const useSearchStore = defineStore('search', () => {
         query.push(Query.cursorAfter(lastId))
       }
       const response = await databases.listDocuments({
-        databaseId: 'production',
+        databaseId: APPWRITE_DATABASE_ID,
         collectionId: 'items',
         queries: query,
       })
@@ -54,7 +56,7 @@ export const useSearchStore = defineStore('search', () => {
 
   async function search(text: string) {
     const query = [Query.search('data', text)]
-    const response = await databases.listDocuments('production', 'items', query)
+    const response = await databases.listDocuments(APPWRITE_DATABASE_ID, 'items', query)
     results.value = groupByTeam(parse(response.documents))
   }
 

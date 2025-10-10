@@ -1,3 +1,6 @@
+export const APPWRITE_DATABASE_ID = 'production';
+export const APPWRITE_STORAGE_BUCKET = 'production';
+
 export const ICONS = {
   bmc_tmp: 'help',
   vp: 'group_work',

@@ -3,8 +3,7 @@ import { storage } from '@/api/appwrite'
 import { v4 as uuid } from 'uuid'
 import { Permission, Role } from 'appwrite'
 import { useTeamsStore } from './teams'
-
-const APP_STORAGE_BUCKET = 'production'
+import { APPWRITE_STORAGE_BUCKET } from '@/utils/constants'
 
 export const useStorageStore = defineStore('storage', () => {
   const teamsStore = useTeamsStore()
@@ -23,18 +22,18 @@ export const useStorageStore = defineStore('storage', () => {
     } else {
       fileId = fileIdOrFile as string
     }
-    storage.createFile({ bucketId: APP_STORAGE_BUCKET, fileId, file, permissions })
+    storage.createFile({ bucketId: APPWRITE_STORAGE_BUCKET, fileId, file, permissions })
     return fileId
   }
 
   function removeFile(fileId: string) {
-    storage.deleteFile({ bucketId: APP_STORAGE_BUCKET, fileId })
+    storage.deleteFile({ bucketId: APPWRITE_STORAGE_BUCKET, fileId })
   }
 
   function getFileUrl(fileId: string) {
     if (!fileId) return
     return storage.getFilePreview(
-      APP_STORAGE_BUCKET,
+      APPWRITE_STORAGE_BUCKET,
       fileId
     )
   }
