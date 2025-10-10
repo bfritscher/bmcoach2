@@ -16,7 +16,7 @@ export default class Note implements BMCNote {
   image: string
   parent: string
   calcId: string
-  values: object
+  values: Record<string, unknown>
   calcDisplayR?: string
   calcDisplayG?: string
   calcDisplayB?: string

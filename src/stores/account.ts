@@ -5,7 +5,7 @@ import { accountClient } from '@/api/appwrite'
 import { useTeamsStore } from '@/stores/teams'
 import { Notify } from 'quasar'
 import { useRouter } from 'vue-router'
-import { get } from 'node_modules/axios/index.d.cts'
+
 const baseUrl = import.meta.env.VITE_APP_URL
 
 export const useAccountStore = defineStore('account', () => {

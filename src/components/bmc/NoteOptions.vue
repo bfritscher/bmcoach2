@@ -40,14 +40,14 @@
 
         <q-separator v-if="isEditable" />
         <q-input
+          v-model="localDescription"
           type="textarea"
           :bg-color="COLORS_MATERIAL[note.colors?.[0] || 0]"
           filled
           outlined
           name="description"
           label="Description"
-          :model-value="note.description"
-          @update:model-value="updateNote('description', $event)"
+          @blur="commitDescription"
         />
         <q-separator />
         <q-expansion-item
@@ -125,7 +125,7 @@
                   hint="Any calculation example cs1.size * tickets.price"
                   hide-hint
                   :label="calcVar"
-                  :model-value="val"
+                  :model-value="asInputValue(val)"
                   :error="Boolean(getError(calcVar))"
                   :error-message="getError(calcVar)"
                   :suffix="`= ${getResult(note.calcId, calcVar)}`"
@@ -174,10 +174,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
+import debounce from 'lodash.debounce'
 import humanFormat from 'human-format'
 import ImageZone from '@/components/bmc/ImageZone.vue'
-import Note from '@/models/Note'
 import { COLORS_MATERIAL, COLORS_MATERIAL_DARK } from '@/utils/constants'
 import { storeToRefs } from 'pinia'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
@@ -195,6 +195,19 @@ const { focusedNote, calcIds, calcResults } = storeToRefs(bmcStore)
 const { noteUpdate, noteDelete, noteUpdateCalcVal } = bmcStore
 
 const newVariable = ref<string | null>(null)
+const localDescription = ref<string>(focusedNote.value?.description ?? '')
+
+let suppressDescriptionWatcher = false
+let hasPendingDescriptionChange = false
+
+const debouncedSaveDescription = debounce((payload: { note: BMCNote; description: string }) => {
+  noteUpdate({
+    note: payload.note,
+    changes: {
+      description: payload.description,
+    },
+  })
+}, 250)
 
 const rules = {
   variable: (value: string) => patternVar.test(value) || 'Invalid name only use a-z, a-Z, 0-9, _',
@@ -202,9 +215,7 @@ const rules = {
     const calcIdsValue = calcIds.value
     const firstIndex = calcIdsValue.indexOf(value) + 1
     // check if there is a 2nd element in the array (1st time is self)
-    return (
-      calcIdsValue.indexOf(value, firstIndex) === -1 || 'Name already used, ID must be unique!'
-    )
+    return calcIdsValue.indexOf(value, firstIndex) === -1 || 'Name already used, ID must be unique!'
   },
 }
 
@@ -250,9 +261,82 @@ const note = computed(() => {
   return noteValue
 })
 
+type EditableNote = BMCNote & { isGame?: boolean }
+
 const isEditable = computed(() => {
-  return !(note.value as any).isGame && layout.value.isEditable
+  const current = note.value as EditableNote
+  return !current.isGame && layout.value.isEditable
 })
+
+watch(
+  () => note.value.description,
+  (newDescription) => {
+    const normalized = newDescription ?? ''
+    if (normalized === localDescription.value) {
+      return
+    }
+    suppressDescriptionWatcher = true
+    localDescription.value = normalized
+    nextTick(() => {
+      suppressDescriptionWatcher = false
+    })
+  },
+  { immediate: true },
+)
+
+watch(localDescription, (newDescription, previousDescription) => {
+  if (
+    suppressDescriptionWatcher ||
+    newDescription === previousDescription ||
+    !layout.value.showNoteOptions
+  ) {
+    return
+  }
+  const currentNote = note.value
+  if (!currentNote.$id) {
+    return
+  }
+  hasPendingDescriptionChange = true
+  debouncedSaveDescription({
+    note: currentNote,
+    description: newDescription ?? '',
+  })
+})
+
+function commitDescription() {
+  const currentNote = note.value
+  if (!currentNote.$id) {
+    debouncedSaveDescription.cancel()
+    hasPendingDescriptionChange = false
+    return
+  }
+  const finalDescription = localDescription.value ?? ''
+  if (!hasPendingDescriptionChange && finalDescription === (currentNote.description ?? '')) {
+    debouncedSaveDescription.cancel()
+    return
+  }
+  debouncedSaveDescription.flush()
+  debouncedSaveDescription.cancel()
+  if (finalDescription !== (currentNote.description ?? '')) {
+    noteUpdate({
+      note: currentNote,
+      changes: {
+        description: finalDescription,
+      },
+    })
+  }
+  hasPendingDescriptionChange = false
+}
+
+function asInputValue(value: unknown): string | number | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    return value
+  }
+  return String(value)
+}
 
 function whichCalcDisplay(calcVar: string | number) {
   const key = String(calcVar)
@@ -260,6 +344,7 @@ function whichCalcDisplay(calcVar: string | number) {
 }
 
 function hideDialog() {
+  commitDescription()
   layout.value.showNoteOptions = false
 }
 
@@ -268,7 +353,7 @@ function deleteNote() {
   noteDelete(note.value)
 }
 
-function updateNote(field: string, data: any) {
+function updateNote(field: string, data: unknown) {
   noteUpdate({
     note: note.value,
     changes: {
@@ -280,7 +365,7 @@ function updateNote(field: string, data: any) {
 function updateCalcDisplay(calVar: string | number, c: string | null) {
   const key = String(calVar)
   const current = whichCalcDisplay(key)
-  const changes: Record<string, any> = {}
+  const changes: Record<string, unknown> = {}
   if (c) {
     changes[`calcDisplay${c}`] = key
   }
@@ -300,7 +385,7 @@ function getResult(calcId: string, calcVar: string | number) {
     if (typeof res === 'object') {
       try {
         return JSON.stringify(res)
-      } catch (e) {
+      } catch {
         return res
       }
     }
@@ -336,13 +421,17 @@ function removeCalcVar(name: string | number) {
   updateNote('values', copy)
 }
 
-function updateCalcVal(key: string | number, value: any) {
+function updateCalcVal(key: string | number, value: unknown) {
   noteUpdateCalcVal({
     note: note.value,
     key: String(key),
     value,
   })
 }
+
+onBeforeUnmount(() => {
+  commitDescription()
+})
 </script>
 
 <style>

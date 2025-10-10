@@ -91,11 +91,11 @@
         :class="{
           'hide-label': !value.showLabel || canvasSettings.hideAllLabels,
         }"
-        :value="value.text"
+        v-model="localText"
         :style="{ 'font-size': `${fontSize}px` }"
         @click.prevent.stop
-        @input="updateText"
         @focus="handleFocus"
+        @blur="commitText"
         @keydown="handleKeyDown($event)"
         @keyup="handleKeyUp($event)"
       ></textarea>
@@ -146,7 +146,7 @@ import { VPC_VP_TYPES, VPC_CS_TYPES, VPC_TYPES } from '@/stores/bmc-store'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import { useBMCStore } from '@/stores/bmc-store'
 import { useStorageStore } from '@/stores/storage'
-import { COLORS_MATERIAL_DARK, COLORS_MATERIAL_HEX } from '@/utils/constants'
+import { COLORS_MATERIAL_HEX } from '@/utils/constants'
 import { humanformat } from '@/utils/filters'
 import type { BMCNote } from '@/components/models'
 
@@ -154,6 +154,31 @@ const MIN_FONT_SIZE = 10
 let MAX_FONT_SIZE = 24
 const MIN_HEIGHT = 5
 const MAX_HEIGHT = 20
+
+type DraggableOptions = Parameters<ReturnType<typeof interact>['draggable']>[0]
+
+type ExtendedDraggableOptions = DraggableOptions & {
+  restrict?: {
+    restriction: string | Element
+    endOnly?: boolean
+    elementRect?: { top: number; left: number; bottom: number; right: number }
+  }
+}
+
+type DragMoveEvent = {
+  dx: number
+  dy: number
+  dropzone?: { target?: Element | null } | null
+}
+
+type DragEndEvent = {
+  relatedTarget?: Element | null
+  dropzone?: { target?: Element | null } | null
+}
+
+type GestureMoveEvent = {
+  da: number
+}
 
 const props = defineProps<{
   value: BMCNote
@@ -182,7 +207,6 @@ const storageStore = useStorageStore()
 const { getFileUrl } = storageStore
 
 const colorsBG = COLORS_MATERIAL_HEX
-const colorList = COLORS_MATERIAL_DARK
 
 const x = ref(0)
 const y = ref(0)
@@ -195,6 +219,20 @@ const opacity = ref(1)
 const boxShadow = ref('')
 const focused = ref(false)
 const textarea = ref<HTMLTextAreaElement>()
+const localText = ref(props.value.text ?? '')
+
+let suppressTextWatcher = false
+let hasPendingTextChange = false
+
+const debouncedSaveText = debounce((text: string) => {
+  noteUpdate(
+    {
+      note: props.value,
+      changes: { text },
+    },
+    { persist: false },
+  )
+}, 250)
 
 let debouncedCalculateFontSizeAndHeight: ReturnType<typeof debounce> | null = null
 
@@ -209,19 +247,7 @@ const colors = computed(() => props.value.colors)
 const color = computed(() => props.value.colors[0] || 0)
 const direction = computed(() => (props.value.top > 70 ? 'up' : 'down'))
 
-const isEdit = computed(() => {
-  if (layout.value.focusedNoteId && props.value && layout.value.focusedNoteId === props.value.$id) {
-    if (!focused.value) {
-      nextTick(() => {
-        textarea.value?.focus()
-        focused.value = true
-      })
-    }
-    return true
-  }
-  focused.value = false
-  return false
-})
+const isEdit = computed(() => layout.value.focusedNoteId === props.value.$id)
 
 const left = computed(() => (listMode.value ? props.value.listLeft : props.value.left))
 const top = computed(() => (listMode.value ? props.value.listTop : props.value.top))
@@ -229,7 +255,11 @@ const angle = computed(() => (listMode.value ? 0 : props.value.angle))
 
 const highlight = computed(() => {
   if (!instance?.proxy?.$route) return false
-  return [instance.proxy.$route.query.zoom1, instance.proxy.$route.query.zoom2].indexOf(props.value.$id) > -1
+  return (
+    [instance.proxy.$route.query.zoom1, instance.proxy.$route.query.zoom2].indexOf(
+      props.value.$id,
+    ) > -1
+  )
 })
 
 const transform = computed(() => {
@@ -248,12 +278,15 @@ function setOpacity() {
     opacity.value = 0
   } else {
     // calculate visibility based on colors
-    opacity.value = colorsVisibility.value.reduce((totalOpacity: number, opacityVal: number, colorId: number) => {
-      if (props.value.colors.includes(colorId)) {
-        totalOpacity += opacityVal
-      }
-      return Math.min(totalOpacity, 1)
-    }, 0)
+    opacity.value = colorsVisibility.value.reduce(
+      (totalOpacity: number, opacityVal: number, colorId: number) => {
+        if (props.value.colors.includes(colorId)) {
+          totalOpacity += opacityVal
+        }
+        return Math.min(totalOpacity, 1)
+      },
+      0,
+    )
   }
 }
 
@@ -284,7 +317,8 @@ function showNoteOptions(showNoteOptionsCalc?: boolean) {
 }
 
 function handleKeyDown(e: KeyboardEvent) {
-  const allowEdit = layout.value.isEditable && !(props.value as any).isGame
+  const allowEdit =
+    layout.value.isEditable && !(props.value as BMCNote & { isGame?: boolean }).isGame
   if (!allowEdit) {
     e.preventDefault()
   }
@@ -297,9 +331,12 @@ function handleKeyUp(e: KeyboardEvent) {
   }
   if (e.keyCode === 13 && e.ctrlKey) {
     if (!instance?.proxy?.$el || !props.parent) return
-    const leftVal = (instance.proxy.$el.offsetLeft / instance.proxy.$el.parentElement.offsetWidth) * 100
+    const leftVal =
+      (instance.proxy.$el.offsetLeft / instance.proxy.$el.parentElement.offsetWidth) * 100
     const topVal =
-      ((instance.proxy.$el.offsetTop + instance.proxy.$el.offsetHeight + 20) / props.parent.offsetHeight) * 100
+      ((instance.proxy.$el.offsetTop + instance.proxy.$el.offsetHeight + 20) /
+        props.parent.offsetHeight) *
+      100
     noteCreate({
       type: props.value.type,
       left: leftVal,
@@ -345,7 +382,16 @@ function removeIfEmpty() {
   }
 }
 
-function sortSortable(type: string, options?: any) {
+interface SortOptions {
+  exclude?: BMCNote
+  save?: boolean
+  force?: boolean
+}
+
+function sortSortable(type: string, options: SortOptions = {}) {
+  if (!listMode.value && !options.force) {
+    return
+  }
   let zoneTop = 0
   let zoneLeft = -10 // for tmp outside of paper
   let zoneHeight = 100
@@ -374,9 +420,9 @@ function sortSortable(type: string, options?: any) {
       zoneLeft = 80
     }
   }
-  let ordered = getNotesByTypes(type)
+  let ordered = getNotesByTypes(type) as BMCNote[]
   if (VPC_TYPES.includes(type)) {
-    ordered = ordered.filter((note: any) => {
+    ordered = ordered.filter((note) => {
       let matched = false
       if (layout.value.selectedVP) {
         matched = note.parent === layout.value.selectedVP.$id
@@ -388,7 +434,7 @@ function sortSortable(type: string, options?: any) {
     })
   }
 
-  ordered.sort((a: any, b: any) => {
+  ordered.sort((a, b) => {
     if (a.listLeft - b.listLeft > 10) {
       return 1
     }
@@ -400,7 +446,7 @@ function sortSortable(type: string, options?: any) {
 
   let topPos = zoneTop + offsetTop
   let leftPos = zoneLeft + offsetLeft
-  ordered.forEach((note: any) => {
+  ordered.forEach((note) => {
     if (topPos + note.height > zoneTop + zoneHeight) {
       topPos = zoneTop + offsetTop
       leftPos += zoneWidth / 2.0 + marginLeft
@@ -408,20 +454,31 @@ function sortSortable(type: string, options?: any) {
 
     // only dispatch for notes not in the exclude list
     if (!(options && options.exclude && options.exclude.$id === note.$id)) {
-      if (options && options.save) {
-        noteUpdate({
-          note,
-          changes: {
-            listTop: topPos,
-            listLeft: leftPos,
-          },
-        })
-      } else {
-        noteMoveLocal({
-          note,
-          listTop: topPos,
-          listLeft: leftPos,
-        })
+      const targetTop = Number(topPos.toFixed(2))
+      const targetLeft = Number(leftPos.toFixed(2))
+      const moved =
+        Math.abs((note.listTop ?? 0) - targetTop) > 0.1 ||
+        Math.abs((note.listLeft ?? 0) - targetLeft) > 0.1
+
+      if (moved) {
+        if (options.save) {
+          noteUpdate(
+            {
+              note,
+              changes: {
+                listTop: targetTop,
+                listLeft: targetLeft,
+              },
+            },
+            { persist: false },
+          )
+        } else {
+          noteMoveLocal({
+            note,
+            listTop: targetTop,
+            listLeft: targetLeft,
+          })
+        }
       }
     }
     topPos += note.height + marginTop
@@ -434,17 +491,20 @@ function createDebouncedCalculateFontSizeAndHeight() {
   })
 }
 
-function calculateFontSizeAndHeight(previous?: any[]) {
+type SizeSnapshot = { height: number; fontSize: number }
+
+function calculateFontSizeAndHeight(previous?: SizeSnapshot[]) {
   if (!textarea.value || !instance?.proxy?.$el) {
     return
   }
   // TODO: cache it
   MAX_FONT_SIZE = instance.proxy.$el.parentNode.parentNode.offsetHeight * 0.03
+  const baselineHeight = props.value.height ?? MIN_HEIGHT
+  const history: SizeSnapshot[] = Array.isArray(previous) ? previous : []
   if (!Array.isArray(previous)) {
-    previous = []
     fontSize.value = Math.min(fontSize.value, MAX_FONT_SIZE)
   }
-  previous.unshift({
+  history.unshift({
     height: height.value,
     fontSize: fontSize.value,
   })
@@ -504,30 +564,36 @@ function calculateFontSizeAndHeight(previous?: any[]) {
       }
     }
   }
-  // store height to compute list mode positions
-  noteMoveLocal({ note: props.value, height: height.value })
-
   // loop if not min/maxed or in stable state.
   let twoAgo
-  if (previous.length > 1) {
-    twoAgo = previous.pop()
+  if (history.length > 1) {
+    twoAgo = history.pop()
   }
   if (
     !((maxedOutHeight && minedOutFont) || (minedOutHeight && maxedOutFont)) &&
     (!twoAgo || !(twoAgo.height === height.value && twoAgo.fontSize === fontSize.value))
   ) {
     nextTick(() => {
-      calculateFontSizeAndHeight(previous)
+      calculateFontSizeAndHeight(history)
     })
   } else {
     // done
-    noteUpdate({
-      changes: { height: height.value },
-      note: props.value,
-    })
+    const targetHeight = Number(height.value.toFixed(2))
+    const heightChanged = Math.abs(baselineHeight - targetHeight) > 0.05
 
-    if (listMode.value) {
-      sortSortable(props.value.type, { save: true })
+    noteMoveLocal({ note: props.value, height: targetHeight })
+
+    if (heightChanged) {
+      noteUpdate(
+        {
+          changes: { height: targetHeight },
+          note: props.value,
+        },
+        { persist: false },
+      )
+      if (listMode.value) {
+        sortSortable(props.value.type, { save: true })
+      }
     }
   }
 }
@@ -547,19 +613,76 @@ function zoom() {
   layout.value[`selected${props.value.type.toUpperCase()}`] = props.value
 }
 
-function updateText(e: Event) {
-  const target = e.target as HTMLTextAreaElement
-  noteUpdate({
-    changes: { text: target.value },
-    note: props.value,
-  })
+watch(
+  () => props.value.text,
+  (newText) => {
+    const normalized = newText ?? ''
+    if (normalized === localText.value) {
+      return
+    }
+    suppressTextWatcher = true
+    localText.value = normalized
+    nextTick(() => {
+      suppressTextWatcher = false
+    })
+  },
+  { immediate: true },
+)
+
+watch(localText, (text, previous) => {
+  if (suppressTextWatcher || text === previous || !isEdit.value) {
+    return
+  }
+  hasPendingTextChange = true
+  debouncedSaveText(text)
+})
+
+function commitText() {
+  if (!hasPendingTextChange && localText.value === props.value.text) {
+    debouncedSaveText.cancel()
+    return
+  }
+  debouncedSaveText.flush()
+  debouncedSaveText.cancel()
+  const finalText = localText.value ?? ''
+  if (finalText !== props.value.text) {
+    noteUpdate({
+      changes: { text: finalText },
+      note: props.value,
+    })
+  }
+  hasPendingTextChange = false
 }
 
 // Watchers
 watch(isEdit, (val) => {
-  if (!val) {
+  if (val) {
+    hasPendingTextChange = false
+    const currentText = props.value.text ?? ''
+    if (currentText !== localText.value) {
+      suppressTextWatcher = true
+      localText.value = currentText
+      nextTick(() => {
+        suppressTextWatcher = false
+      })
+    }
+    if (!focused.value) {
+      nextTick(() => {
+        textarea.value?.focus()
+        focused.value = true
+      })
+    }
+  } else {
+    if (hasPendingTextChange || localText.value !== (props.value.text ?? '')) {
+      commitText()
+    } else {
+      debouncedSaveText.cancel()
+    }
+    focused.value = false
     removeIfEmpty()
-    sortSortable(props.value.type)
+    if (listMode.value) {
+      sortSortable(props.value.type)
+    }
   }
 })
 
@@ -585,6 +708,9 @@ watch(showAsSticky, (after, before) => {
 watch(listMode, (after, before) => {
   if (after !== before) {
     setBoxShadow()
+    if (after) {
+      sortSortable(props.value.type, { save: true, force: true })
+    }
   }
 })
 
@@ -600,7 +726,7 @@ watch(
     if (after !== before) {
       setOpacity()
     }
-  }
+  },
 )
 
 watch(
@@ -609,7 +735,7 @@ watch(
     if (after !== before) {
       setOpacity()
     }
-  }
+  },
 )
 
 onMounted(() => {
@@ -618,7 +744,7 @@ onMounted(() => {
 
   if (instance?.proxy?.$el) {
     const el = instance.proxy.$el
-    ;(interact(el as any) as any)
+    interact(el as HTMLElement)
       .draggable({
         inertia: true,
         restrict: {
@@ -634,7 +760,7 @@ onMounted(() => {
           y.value = el.offsetTop
           moveToTop()
         },
-        onmove: (event: any) => {
+        onmove: (event: DragMoveEvent) => {
           x.value += event.dx
           y.value += event.dy
           dx.value = event.dx
@@ -642,8 +768,8 @@ onMounted(() => {
           const topVal = (parseFloat(String(y.value)) / props.parent.offsetHeight) * 100
 
           let type = ''
-          if (event.dropzone && event.dropzone.target) {
-            type = event.dropzone.target.getAttribute('id')
+          if (event.dropzone?.target) {
+            type = event.dropzone.target.getAttribute('id') || ''
           } else {
             type = props.parent.getAttribute('data-none') || ''
           }
@@ -663,20 +789,22 @@ onMounted(() => {
             })
           }
 
-          sortSortable(type, {
-            exclude: props.value,
-          })
+          if (listMode.value) {
+            sortSortable(type, {
+              exclude: props.value,
+            })
+          }
         },
-        onend: (event: any) => {
+        onend: (event: DragEndEvent) => {
           dragging.value = false
           let newtype = ''
           if (event.relatedTarget) {
-            newtype = event.relatedTarget.getAttribute('id')
+            newtype = event.relatedTarget.getAttribute('id') || ''
           } else {
             newtype = props.parent.getAttribute('data-none') || ''
           }
 
-          const payload: any = {
+          const payload: { note: BMCNote; changes: Partial<BMCNote> } = {
             note: props.value,
             changes: {
               type: newtype,
@@ -690,9 +818,11 @@ onMounted(() => {
             payload.changes.top = props.value.top
           }
           noteUpdate(payload)
-          sortSortable(newtype, { save: true })
+          if (listMode.value) {
+            sortSortable(newtype, { save: true })
+          }
         },
-      })
+      } as ExtendedDraggableOptions)
       .on('doubletap', () => {
         noteUpdate({
           note: props.value,
@@ -702,7 +832,7 @@ onMounted(() => {
         })
       })
       .gesturable({
-        onmove: (event: any) => {
+        onmove: (event: GestureMoveEvent) => {
           noteUpdate({
             note: props.value,
             changes: {
@@ -716,11 +846,16 @@ onMounted(() => {
   setBoxShadow()
   setOpacity()
   nextTick(() => {
-    setTimeout(calculateFontSizeAndHeight, 500)
+    calculateFontSizeAndHeight()
   })
 })
 
 onBeforeUnmount(() => {
+  if (hasPendingTextChange || localText.value !== (props.value.text ?? '')) {
+    commitText()
+  } else {
+    debouncedSaveText.cancel()
+  }
   if (debouncedCalculateFontSizeAndHeight) {
     window.removeEventListener('resize', debouncedCalculateFontSizeAndHeight)
   }

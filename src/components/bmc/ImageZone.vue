@@ -74,12 +74,13 @@ const props = withDefaults(
     image: '',
     color: 'transparent',
     allowClick: true,
-  }
+  },
 )
 
 const emit = defineEmits<{
   'update:color': [color: string | null]
   'update:image': [image: string | null]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   'image-drop': [event: any]
 }>()
 
@@ -95,6 +96,7 @@ const height = ref(0)
 const left = ref('')
 const top = ref('')
 const previewColor = ref('transparent')
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const lastEvent = ref<any>(null)
 const showCanvas = ref(false)
 const fileinput = ref<HTMLInputElement>()
@@ -193,7 +195,7 @@ function displayColorPicker() {
       }
     })
   }
-  img.src = getFileUrl(props.image)
+  img.src = getFileUrl(props.image) || ''
 }
 
 function pickColor(e: MouseEvent, save: boolean) {

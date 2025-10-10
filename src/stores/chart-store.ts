@@ -15,16 +15,25 @@ export function isOfTypeSC(type: string) {
   return [TYPE_SC_CHART, TYPE_SC_SERIE, TYPE_SC_FACTOR, TYPE_SC_OFFERING].includes(type)
 }
 
+type ItemBucket<T> = Record<string, T>
+
+function getBucket<T>(source: Record<string, unknown>, key: string): ItemBucket<T> {
+  const bucket = source[key]
+  if (bucket && typeof bucket === 'object') {
+    return bucket as ItemBucket<T>
+  }
+  return {} as ItemBucket<T>
+}
+
 export const useChartStore = defineStore('chart', () => {
   const itemsStore = useItemsStore()
 
   const currentChartId = ref('')
-  const chart = computed(() => {
-    if (
-      itemsStore.typeIndex[TYPE_SC_CHART] &&
-      itemsStore.typeIndex[TYPE_SC_CHART][currentChartId.value]
-    ) {
-      return itemsStore.typeIndex[TYPE_SC_CHART][currentChartId.value]
+  const chart = computed<Chart>(() => {
+    const bucket = getBucket<Chart>(itemsStore.typeIndex, TYPE_SC_CHART)
+    const existing = bucket[currentChartId.value]
+    if (existing) {
+      return existing
     }
     return {
       $id: '',
@@ -37,35 +46,36 @@ export const useChartStore = defineStore('chart', () => {
   })
 
   const series = computed(() => {
-    return chart.value.series.map(
-      (serieId: string) => itemsStore.typeIndex[TYPE_SC_SERIE][serieId] as Serie,
-    ) as Serie[]
+    const bucket = getBucket<Serie>(itemsStore.typeIndex, TYPE_SC_SERIE)
+    return chart.value.series
+      .map((serieId: string) => bucket[serieId])
+      .filter((serie): serie is Serie => Boolean(serie))
   })
 
   const factors = computed(() => {
+    const bucket = getBucket<Factor>(itemsStore.typeIndex, TYPE_SC_FACTOR)
     return chart.value.factors
-      .map((factorId: string) => itemsStore.typeIndex[TYPE_SC_FACTOR][factorId] as Factor)
-      .filter((f: Factor) => f) as Factor[]
+      .map((factorId: string) => bucket[factorId])
+      .filter((f): f is Factor => Boolean(f))
   })
 
   const offerings = computed(() => {
-    return itemsStore.typeIndex[TYPE_SC_OFFERING]
-      ? (Object.values(itemsStore.typeIndex[TYPE_SC_OFFERING]) as Offering[]).reduce(
-          (agg: { [key: string]: Offering[] }, offering: Offering) => {
-            if (!agg[offering.serieId]) {
-              agg[offering.serieId] = []
-            }
-            if (!agg[offering.factorId]) {
-              agg[offering.factorId] = []
-            }
-            agg[offering.serieId]!.push(offering)
-            agg[offering.factorId]!.push(offering)
-            agg[`${offering.serieId}-${offering.factorId}`] = [offering]
-            return agg
-          },
-          {},
-        )
-      : {}
+    const bucket = getBucket<Offering>(itemsStore.typeIndex, TYPE_SC_OFFERING)
+    return Object.values(bucket).reduce(
+      (agg: { [key: string]: Offering[] }, offering: Offering) => {
+        if (!agg[offering.serieId]) {
+          agg[offering.serieId] = []
+        }
+        if (!agg[offering.factorId]) {
+          agg[offering.factorId] = []
+        }
+        agg[offering.serieId]!.push(offering)
+        agg[offering.factorId]!.push(offering)
+        agg[`${offering.serieId}-${offering.factorId}`] = [offering]
+        return agg
+      },
+      {},
+    )
   })
 
   function newChart() {
@@ -196,12 +206,13 @@ export const useChartStore = defineStore('chart', () => {
 
   function removeSerie(serie: Serie) {
     // TODO what about offerings?
-    const index = chart.value.series.indexOf(serie.$id)
+    const currentSeries = Array.isArray(chart.value.series) ? chart.value.series : []
+    const index = currentSeries.indexOf(serie.$id)
     if (index >= 0) {
       itemsStore.removeItem(serie.$id)
       updateChart(
         'series',
-        chart.value.serie.filter((id: string) => id !== serie.$id),
+        currentSeries.filter((id: string) => id !== serie.$id),
       )
     }
   }
@@ -256,7 +267,7 @@ export const useChartStore = defineStore('chart', () => {
     itemsStore.removeItem(offering.$id)
   }
 
-  function updateChart(attribute: keyof Chart, value: any) {
+  function updateChart<K extends keyof Chart>(attribute: K, value: Chart[K]) {
     itemsStore.updateItemData(currentChartId.value, {
       [attribute]: value,
     })
@@ -296,13 +307,9 @@ export const useChartStore = defineStore('chart', () => {
     downloadFile('data.csv', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv))
   }
 
-  const seriesIndex = computed(() => {
-    return itemsStore.typeIndex[TYPE_SC_SERIE]
-  })
+  const seriesIndex = computed(() => getBucket<Serie>(itemsStore.typeIndex, TYPE_SC_SERIE))
 
-  const factorsIndex = computed(() => {
-    return itemsStore.typeIndex[TYPE_SC_FACTOR]
-  })
+  const factorsIndex = computed(() => getBucket<Factor>(itemsStore.typeIndex, TYPE_SC_FACTOR))
 
   return {
     chart,

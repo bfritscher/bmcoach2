@@ -6,8 +6,8 @@
     <div v-for="item in items" :key="item.$id">
       <q-input
         :label="props.fieldLabel"
-        :model-value="item[props.fieldName]"
-        @update:model-value="itemsStore.updateItemData(item.$id, { [props.fieldName]: $event })"
+        :model-value="getFieldValue(item)"
+        @update:model-value="updateItemField(item, $event)"
       />
       <q-btn label="delete" color="negative" @click="itemsStore.removeItem(item.$id)" />
     </div>
@@ -37,15 +37,36 @@ function addEntry() {
   })
 }
 
-const items = computed(() => {
-  if (itemsStore.typeIndex[props.type] === undefined) {
+function getFieldValue(item: ListedItem): string {
+  const value = item[props.fieldName]
+  if (typeof value === 'string') {
+    return value
+  }
+  return value == null ? '' : String(value)
+}
+
+function updateItemField(item: ListedItem, value: string | number | null) {
+  itemsStore.updateItemData(item.$id, {
+    [props.fieldName]: value == null ? '' : String(value),
+  })
+}
+
+type ListedItem = Record<string, unknown> & { $id: string }
+
+const items = computed<ListedItem[]>(() => {
+  const bucket = itemsStore.typeIndex[props.type]
+  if (!bucket) {
     return []
   }
-  const items = Object.values(itemsStore.typeIndex[props.type])
-  // TODO maybe filter?
-  items.sort((a: any, b: any) => {
-    return a[props.fieldName].localeCompare(b[props.fieldName])
-  })
-  return items as any[]
+  return Object.values(bucket)
+    .filter(
+      (entry): entry is ListedItem => Boolean(entry) && typeof entry === 'object' && '$id' in entry,
+    )
+    .slice()
+    .sort((a, b) => {
+      const valueA = String(a[props.fieldName] ?? '')
+      const valueB = String(b[props.fieldName] ?? '')
+      return valueA.localeCompare(valueB)
+    })
 })
 </script>

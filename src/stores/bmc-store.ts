@@ -27,14 +27,34 @@ export const VPC_VP_TYPES = ['vpc_tmp', 'features', 'solution']
 
 export const VPC_CS_TYPES = ['vpc_tmp', 'pain_gain', 'job']
 
+interface CanvasData {
+  $id: string
+  title: string
+  description: string
+  notes: string[]
+  notesOrder: string[]
+  notesPresentationOrder: string[]
+  currentPresentationKey: string
+  logoColor: string
+  logoImage: string
+  info?: { isGame?: boolean; [key: string]: unknown }
+  gameNbChecks?: number
+  gameCompleted?: unknown
+  [key: string]: unknown
+}
+
+type NoteBucket = Record<string, BMCNote>
+
 export const useBMCStore = defineStore('canvas', () => {
   const itemsStore = useItemsStore()
   const storageStore = useStorageStore()
 
   const currentBMCId = ref('')
-  const canvas = computed(() => {
-    if (itemsStore.typeIndex[TYPE_BMC] && itemsStore.typeIndex[TYPE_BMC][currentBMCId.value]) {
-      return itemsStore.typeIndex[TYPE_BMC][currentBMCId.value]
+  const canvas = computed<CanvasData>(() => {
+    const bucket = itemsStore.typeIndex[TYPE_BMC] as Record<string, CanvasData> | undefined
+    const existing = bucket?.[currentBMCId.value]
+    if (existing) {
+      return existing
     }
     return {
       $id: '',
@@ -64,23 +84,24 @@ export const useBMCStore = defineStore('canvas', () => {
   const canvasSettings = reactive(settings)
 
   const notes = computed(() => {
+    const bucket = itemsStore.typeIndex[TYPE_BMC_NOTE] as NoteBucket | undefined
+    if (!bucket) {
+      return [] as BMCNote[]
+    }
     return canvas.value.notes
-      .map((noteId: string) => {
-        const n = itemsStore.typeIndex[TYPE_BMC_NOTE][noteId] as BMCNote
-        if(!Array.isArray(n.colors)) {
-          n.colors = Object.keys(n.colors).map((k) => parseInt(k))
-        }
-        return n
-      })
-      .filter((note: any) => note) as BMCNote[]
+      .map((noteId: string) => bucket[noteId])
+      .filter((note): note is BMCNote => Boolean(note))
   })
 
   const notesPresentationOrder = computed(() => {
-    return canvas.value.notesPresentationOrder
-      ? canvas.value.notesPresentationOrder
-          .map((noteId: string) => itemsStore.typeIndex[TYPE_BMC_NOTE][noteId] as BMCNote)
-          .filter((note: any) => note)
-      : ([] as BMCNote[])
+    const order = canvas.value.notesPresentationOrder
+    const bucket = itemsStore.typeIndex[TYPE_BMC_NOTE] as NoteBucket | undefined
+    if (!order || !bucket) {
+      return [] as BMCNote[]
+    }
+    return order
+      .map((noteId: string) => bucket[noteId])
+      .filter((note): note is BMCNote => Boolean(note))
   })
 
   function newCanvas() {
@@ -137,10 +158,10 @@ export const useBMCStore = defineStore('canvas', () => {
     return notes.value.filter((note: BMCNote) => note && list.includes(note.type)) // TODO breaks? .sort((a, b) => canvas.value.notesOrder.indexOf(a.$id) - canvas.value.notesOrder.indexOf(b.$id));
   }
 
-  function noteCreate(payload: any) {
+  function noteCreate(payload: Partial<BMCNote>) {
     if (bmcUiStore.layout.isEditable) {
-      const note = new Note(payload)
-      const $id = itemsStore.addItem(TYPE_BMC_NOTE, note)
+      const note = new Note(payload as BMCNote)
+      const $id = itemsStore.addItem(TYPE_BMC_NOTE, { ...note } as Record<string, unknown>)
       let notesPresentationOrder
       if (!canvas.value.notesPresentationOrder) {
         notesPresentationOrder = canvas.value.notes.slice(0)
@@ -185,7 +206,12 @@ export const useBMCStore = defineStore('canvas', () => {
     }
   }
 
-  function noteUpdate(payload: any) {
+  type NoteUpdatePayload = {
+    note: BMCNote
+    changes: Partial<BMCNote>
+  }
+
+  function noteUpdate(payload: NoteUpdatePayload, options?: { persist?: boolean }) {
     /*
     //FIXME PERMISSIONS
     if (
@@ -197,13 +223,13 @@ export const useBMCStore = defineStore('canvas', () => {
       refs.notes.child(payload.note['.key']).update(payload.changes);
     }
     */
-    itemsStore.updateItemData(payload.note.$id, payload.changes)
+    itemsStore.updateItemData(payload.note.$id, payload.changes, options)
     if (payload.changes.colors) {
       computeCurrentCanvasUsedColors()
     }
   }
 
-  function noteDelete(note: any) {
+  function noteDelete(note: BMCNote) {
     if (note.image) {
       storageStore.removeFile(note.image)
     }
@@ -220,28 +246,47 @@ export const useBMCStore = defineStore('canvas', () => {
     })
   }
 
-  function noteMoveLocal(payload: any) {
+  type NoteMovePayload = {
+    note: BMCNote
+    left?: number
+    top?: number
+    listLeft?: number
+    listTop?: number
+    type?: string
+    angle?: number
+    height?: number
+  }
+
+  function noteMoveLocal(payload: NoteMovePayload) {
+    const mutableNote = payload.note as BMCNote & Record<string, unknown>
     ;['left', 'top', 'listLeft', 'listTop', 'type', 'angle', 'height'].forEach((key) => {
       if (key in payload) {
-        payload.note[key] = payload[key]
+        mutableNote[key] = payload[key] as unknown
       }
     })
   }
 
-  function noteUpdateCalcVal(payload: any) {
+  function noteUpdateCalcVal(payload: {
+    note: BMCNote & { values?: Record<string, unknown> }
+    key: string
+    value: unknown
+  }) {
     // FIXME currently replace full object instead of updating small value
     // concurency problems?
     const values = Object.assign({}, payload.note.values)
     values[payload.key] = payload.value
-    noteUpdate({
-      note: payload.note,
-      changes: {
-        values,
+    noteUpdate(
+      {
+        note: payload.note,
+        changes: {
+          values,
+        },
       },
-    })
+      { persist: false },
+    )
   }
 
-  function canvasUserSettingsUpdate(payload: any) {
+  function canvasUserSettingsUpdate(payload: Partial<typeof DEFAULT_USER_CANVAS_SETTINGS>) {
     // TODO fix and save
     Object.assign(DEFAULT_USER_CANVAS_SETTINGS, payload)
   }
@@ -250,10 +295,13 @@ export const useBMCStore = defineStore('canvas', () => {
   function presentationStart() {
     // hide all
     notes.value.forEach((note) => {
-      noteUpdate({
-        note,
-        changes: { hidden: true },
-      })
+      noteUpdate(
+        {
+          note,
+          changes: { hidden: true },
+        },
+        { persist: false },
+      )
     })
     bmcUiStore.layout.presentation = 'single'
     bmcUiStore.layout.isEditable = false
@@ -275,20 +323,34 @@ export const useBMCStore = defineStore('canvas', () => {
   }
 
   function presentationNext() {
-    const currentIndex = canvas.value.notesPresentationOrder.indexOf(
-      canvas.value.currentPresentationKey,
-    )
-    if (currentIndex === canvas.value.notesPresentationOrder.length - 1) {
+    const order = canvas.value.notesPresentationOrder
+    const currentKey = canvas.value.currentPresentationKey
+    const bucket = itemsStore.typeIndex[TYPE_BMC_NOTE] as NoteBucket | undefined
+    if (!bucket || order.length === 0) {
+      return
+    }
+    const currentIndex = order.indexOf(currentKey)
+    if (currentIndex === order.length - 1) {
       presentationExit()
     } else {
-      let key = canvas.value.notesPresentationOrder[currentIndex + 1]
+      let key = order[currentIndex + 1]
       if (currentIndex === -1) {
-        key = canvas.value.notesPresentationOrder[0]
+        key = order[0]
       }
-      noteUpdate({
-        note: { $id: key },
-        changes: { hidden: false },
-      })
+      if (!key) {
+        return
+      }
+      const note = bucket[key]
+      if (!note) {
+        return
+      }
+      noteUpdate(
+        {
+          note,
+          changes: { hidden: false },
+        },
+        { persist: false },
+      )
       itemsStore.updateItemData(currentBMCId.value, {
         currentPresentationKey: key,
       })
@@ -297,14 +359,24 @@ export const useBMCStore = defineStore('canvas', () => {
   }
 
   function presentationPrevious() {
+    const bucket = itemsStore.typeIndex[TYPE_BMC_NOTE] as NoteBucket | undefined
+    if (!bucket) {
+      return
+    }
     if (canvas.value.currentPresentationKey === '') {
       presentationExit()
     } else {
       const key = canvas.value.currentPresentationKey
-      noteUpdate({
-        note: { $id: key },
-        changes: { hidden: true },
-      })
+      const note = key ? bucket[key] : undefined
+      if (note) {
+        noteUpdate(
+          {
+            note,
+            changes: { hidden: true },
+          },
+          { persist: false },
+        )
+      }
       const currentIndex = canvas.value.notesPresentationOrder.indexOf(
         canvas.value.currentPresentationKey,
       )
@@ -312,18 +384,21 @@ export const useBMCStore = defineStore('canvas', () => {
         currentPresentationKey:
           currentIndex === 0 ? '' : canvas.value.notesPresentationOrder[currentIndex - 1],
       })
-      zoomNoteKey(key)
+      if (key) {
+        zoomNoteKey(key)
+      }
     }
   }
 
   function zoomNoteKey(key: string) {
     if (!key) return false
-    if (!(key in itemsStore.typeIndex[TYPE_BMC_NOTE])) return false
-    const note = itemsStore.typeIndex[TYPE_BMC_NOTE][key]
+    const bucket = itemsStore.typeIndex[TYPE_BMC_NOTE] as NoteBucket | undefined
+    if (!bucket || !(key in bucket)) return false
+    const note = bucket[key]
     if (!note) {
       return false
     }
-    const parentNote = itemsStore.typeIndex[TYPE_BMC_NOTE][note.parent]
+    const parentNote = note.parent ? bucket[note.parent] : undefined
     if (parentNote) {
       if (parentNote.type === 'vp') {
         bmcUiStore.layout.selectedVP = parentNote
@@ -343,7 +418,11 @@ export const useBMCStore = defineStore('canvas', () => {
 
   const focusedNote = computed(() => {
     if (bmcUiStore.layout.focusedNoteId) {
-      return itemsStore.typeIndex[TYPE_BMC_NOTE][bmcUiStore.layout.focusedNoteId] as BMCNote
+      const bucket = itemsStore.typeIndex[TYPE_BMC_NOTE] as NoteBucket | undefined
+      if (!bucket) {
+        return null
+      }
+      return bucket[bmcUiStore.layout.focusedNoteId] ?? null
     }
     return null
   })
@@ -354,7 +433,7 @@ export const useBMCStore = defineStore('canvas', () => {
 
   const calcResults = computed(() => solve(notes.value))
 
-  function canvasInfoUpdate(payload: any) {
+  function canvasInfoUpdate(payload: Record<string, unknown>) {
     itemsStore.updateItemData(currentBMCId.value, {
       ...payload,
     })
