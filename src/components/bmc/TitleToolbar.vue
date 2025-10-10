@@ -1,6 +1,6 @@
 <template>
   <div class="row justify-center items-center" style="flex: 1">
-    <q-btn flat class="text-h5" :label="bmcStore.canvas.title" @click="showEditTitle()">
+    <q-btn flat class="text-h6" :label="bmcStore.canvas.title" @click="showEditTitle()">
       <q-tooltip>Click to change title</q-tooltip>
     </q-btn>
   </div>

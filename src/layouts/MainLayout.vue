@@ -3,6 +3,15 @@
     <q-header bordered class="bg-primary text-white">
       <q-toolbar>
         <q-btn
+          v-if="!!route.meta?.back"
+          flat
+          dense
+          round
+          icon="arrow_back"
+          aria-label="Back"
+          :to="{name: 'team'}"
+        />
+        <q-btn
           v-if="!!route.meta?.leftDrawer"
           flat
           dense
@@ -11,11 +20,10 @@
           aria-label="Menu"
           @click="uiStore.leftDrawerOpen = !uiStore.leftDrawerOpen"
         />
-
         <router-link
           :to="homeLink"
           class="q-toolbar__title ellipsis col-shrink text-white text-decoration-none"
-          >BM | Designer</router-link
+          >{{ APP_NAME }}</router-link
         >
         <search-bar />
         <div class="col-grow row no-wrap items-center">
@@ -25,7 +33,7 @@
         </div>
         <div v-if="accountStore.account">
           <q-btn flat round>
-            <q-avatar>
+            <q-avatar size="md" class="cursor-pointer">
               <img :src="avatars.getInitials({name: accountStore.account.name})" />
             </q-avatar>
             <q-menu fit>
@@ -81,6 +89,7 @@ import { useUIStore } from '@/stores/ui-store'
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 import SearchBar from '@/components/SearchBar.vue'
+import { APP_NAME } from '@/utils/constants'
 
 const accountStore = useAccountStore()
 const uiStore = useUIStore()

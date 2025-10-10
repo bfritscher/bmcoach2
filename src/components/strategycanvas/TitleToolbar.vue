@@ -1,9 +1,8 @@
 <template>
-  <q-toolbar-title shrink> Strategy Canvas </q-toolbar-title>
   <div class="row justify-center items-center" style="flex: 1">
     <q-btn
       flat
-      class="text-h5"
+      class="text-h6"
       :label="chartStore.chart.title"
       :disable="!chartStore.chart.editCode"
       @click="showEditTitle()"

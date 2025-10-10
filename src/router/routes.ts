@@ -83,6 +83,7 @@ const routes: RouteRecordRaw[] = [
         path: 'team/:teamId/strategycanvas/:id',
         meta: {
           requiresAuth: true,
+          back: true,
         },
         components: {
           default: () => import('@/pages/StrategyCanvas.vue'),
@@ -95,6 +96,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           requiresAuth: true,
           leftDrawer: true,
+          back: true,
         },
         components: {
           default: () => import('@/pages/BusinessModelCanvas.vue'),

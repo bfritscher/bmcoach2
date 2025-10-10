@@ -19,7 +19,7 @@ copy
 - move canvas to other project/team (copy + delete?)
 - game
 - export png
-
+- lighter mathjs?
 
 [Data migration]
 - delete previous migration

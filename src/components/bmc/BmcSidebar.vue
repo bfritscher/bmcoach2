@@ -1,13 +1,6 @@
 <template>
   <div>
     <q-list>
-      <q-item v-ripple exact clickable :to="{ name: 'team' }">
-        <q-item-section avatar>
-          <q-icon name="home" />
-        </q-item-section>
-        <q-item-section> Project Home </q-item-section>
-      </q-item>
-      <q-separator spaced />
       <q-item-label header>DISPLAY OPTIONS</q-item-label>
       <q-item v-ripple clickable @click="presentationStart">
         <q-item-section avatar title="Start presentation">
