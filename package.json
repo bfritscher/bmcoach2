@@ -21,6 +21,7 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/itim": "^5.2.7",
     "@quasar/extras": "1.17.0",
+    "@sentry/vue": "^10.19.0",
     "appwrite": "21.1.0",
     "axios": "1.12.2",
     "color-hash": "2.0.2",
@@ -39,6 +40,7 @@
     "uuid": "13.0.0",
     "vue": "3.5.22",
     "vue-draggable-plus": "0.6.0",
+    "vue-gtag": "^3.6.2",
     "vue-router": "4.5.1"
   },
   "devDependencies": {

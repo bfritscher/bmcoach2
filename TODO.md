@@ -3,23 +3,28 @@
 ## Main
 
 configure error logging
-configure analytics
+    setup release / commit hash?
+    sourcemaps ?
 configure deployment
+    setup github / edu-id?
+    commit hash
 
 favicon
 
-presences?
 
 ## Chart
 copy
 
 ## BMC
 [other]
+- feedback github?
 - duplicate canvas and files
 - move canvas to other project/team (copy + delete?)
+- learn / play quiz?
 - game
 - export png
 - lighter mathjs?
+- presences?
 
 [Data migration]
 - delete previous migration
