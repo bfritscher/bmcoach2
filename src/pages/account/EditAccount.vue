@@ -4,7 +4,7 @@
       <q-card flat bordered class="bg-primary text-white">
         <q-card-section class="row items-start q-col-gutter-md">
           <div class="col">
-            <div class="text-h5 text-weight-bold">Account Settings</div>
+            <div class="text-h5">Account Settings</div>
             <div class="text-body2 text-white text-weight-light">
               Manage your profile details, security options, and verification status.
             </div>
@@ -12,7 +12,7 @@
               <div>
                 <div class="text-subtitle2">
                   Signed in as
-                  <span class="text-weight-medium">{{ accountStore.account?.name || '—' }}</span>
+                  <span>{{ accountStore.account?.name || '—' }}</span>
                   via
                   <q-chip dense color="white" text-color="primary" icon="vpn_lock">
                     {{ providerLabel }}

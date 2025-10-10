@@ -1,3 +1,4 @@
+export const APP_NAME = 'BM|Desginer';
 export const APPWRITE_DATABASE_ID = 'production';
 export const APPWRITE_STORAGE_BUCKET = 'production';
 

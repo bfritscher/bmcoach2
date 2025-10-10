@@ -2,13 +2,11 @@
 
 ## Main
 
-config variables APPWRITE
 configure error logging
 configure analytics
 configure deployment
 
 favicon
-title on some pages without meta?
 
 presences?
 
@@ -26,4 +24,5 @@ copy
 [Data migration]
 - delete previous migration
 - add better filters to import
+- add e-mail verified
 - redo migration

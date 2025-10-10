@@ -40,7 +40,7 @@ if (process.env.NODE_ENV === 'production') {
     integrations: [
       new Integrations.BrowserTracing({
         routingInstrumentation: Sentry.vueRouterInstrumentation(router),
-        tracingOrigins: ['localhost', 'chat.bmcoach.app', 'bmdesigner.com', /^\//],
+        tracingOrigins: ['localhost', 'bmdesigner.com', /^\//],
       }),
     ],
     tracesSampleRate: 1.0,

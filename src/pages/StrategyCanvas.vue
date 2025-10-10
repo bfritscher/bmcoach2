@@ -108,6 +108,7 @@ import AddDialog from '@/components/strategycanvas/AddDialog.vue'
 import RemoveDialog from '@/components/strategycanvas/RemoveDialog.vue'
 import StrategyCanvasChart from '@/components/strategycanvas/StrategyCanvasChart.vue'
 import { colors, symbols, symbolsPaths, dashs } from '@/utils/d3-helpers'
+import { APP_NAME } from '@/utils/constants'
 
 const route = useRoute()
 const router = useRouter()
@@ -161,7 +162,7 @@ watchEffect(() => {
 useMeta(() => {
   return {
     title: chartStore.chart?.title,
-    titleTemplate: (title) => `${title} - Strategy Canvas - BMCoach`,
+    titleTemplate: (title) => `${title} - Strategy Canvas - ${APP_NAME}`,
   }
 })
 

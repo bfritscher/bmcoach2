@@ -7,7 +7,7 @@ export default class AuthClient {
     const user = await accountClient.createJWT()
     const client = axios.create({
       headers: {
-        'BMCOACH-JWT': user.jwt,
+        'BMDESIGNER-JWT': user.jwt,
       },
     })
     return client

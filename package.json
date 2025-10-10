@@ -18,6 +18,8 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/itim": "^5.2.7",
     "@quasar/extras": "1.17.0",
     "appwrite": "21.1.0",
     "axios": "1.12.2",

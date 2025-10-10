@@ -3,7 +3,8 @@ import { createPinia } from 'pinia'
 import { Quasar, Dialog, Notify, Meta } from 'quasar'
 
 // Import icon libraries
-import '@quasar/extras/roboto-font/roboto-font.css'
+import "@fontsource/inter";
+import "@fontsource/itim";
 import '@quasar/extras/material-icons/material-icons.css'
 import '@quasar/extras/material-icons-outlined/material-icons-outlined.css'
 

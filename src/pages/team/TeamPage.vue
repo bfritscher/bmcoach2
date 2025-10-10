@@ -5,11 +5,13 @@
       <q-card flat bordered class="bg-primary text-white">
         <q-card-section class="row items-center q-col-gutter-md">
           <div class="col-12 col-sm">
-            <div class="text-h5 text-weight-bold" @click="showEditNameDialog">Project: {{ teamsStore.currentTeam?.name }}</div>
+            <div class="text-h5" @click="showEditNameDialog">
+              Project: {{ teamsStore.currentTeam?.name }}
+            </div>
           </div>
           <div class="col-auto row items-center q-gutter-sm">
             <q-btn
-              :to="{ name: 'home'}"
+              :to="{ name: 'home' }"
               color="white"
               text-color="primary"
               icon="dashboard"
@@ -23,6 +25,7 @@
               icon="settings"
               label="Project Settings"
               unelevated
+              si
             />
           </div>
         </q-card-section>
@@ -33,7 +36,7 @@
         <q-card-section class="row items-center justify-between q-col-gutter-md">
           <div class="col-auto row items-center q-gutter-sm">
             <q-icon name="show_chart" color="primary" />
-            <div class="text-subtitle1 text-weight-medium">Strategy Canvas</div>
+            <div class="text-subtitle1">Strategy Canvas</div>
           </div>
           <div>
             <q-btn
@@ -62,21 +65,31 @@
                 class="text-decoration-none"
               >
                 <q-card flat bordered clickable v-ripple @click="navigate">
-                  <q-card-section class="row items-center q-gutter-sm">
-                    <q-avatar icon="img:/icons/strategy_canvas_logo.svg"/>
-                    <div class="ellipsis text-primary" :title="item.title">{{ item.title }}</div>
-                  </q-card-section>
-                  <q-card-actions>
-                    <q-btn
-                      flat
-                      color="negative"
-                      icon="delete"
-                      @click.stop.prevent="confirmDeleteChart(item)"
-                      aria-label="Delete canvas"
-                    />
-                    <q-space />
-                    <q-btn label="Open" color="primary" flat />
-                  </q-card-actions>
+                                    <q-img
+                    :style="{
+                      'background-color': colorHash.hex(item.title),
+                    }"
+                    class="item-image default-background"
+                    src="/icons/strategy_canvas_logo.svg"
+                    :ratio="16 / 9"
+                    fit="cover"
+                  >
+                    <div class="absolute-bottom text-subtitle1 ellipsis row q-pa-sm items-center">
+                      {{ item.title }}
+                      <q-space />
+                      <q-btn label="Open" color="secondary" outline />
+                    </div>
+                    <div class="absolute-top-right" style="padding:0;background-color: transparent;">
+                      <q-btn
+                        flat
+                        color="grey-6"
+                        icon="delete"
+                        round
+                        @click.stop.prevent="confirmDeleteChart(item)"
+                        aria-label="Delete canvas"
+                      />
+                    </div>
+                  </q-img>
                 </q-card>
               </router-link>
             </div>
@@ -89,7 +102,7 @@
         <q-card-section class="row items-center justify-between q-col-gutter-md">
           <div class="col-auto row items-center q-gutter-sm">
             <q-icon name="dashboard" color="primary" />
-            <div class="text-subtitle1 text-weight-medium">Business Model Canvas</div>
+            <div class="text-subtitle1">Business Model Canvas</div>
           </div>
           <div>
             <q-btn
@@ -130,30 +143,29 @@
                     class="item-image"
                     :class="{
                       'default-background': !item.logoImage,
-                      'fix-white': item.logoColor == 'rgb(255, 255, 255)',
                     }"
                     :src="
                       item.logoImage ? storageStore.getFileUrl(item.logoImage) : defaultBackground
                     "
                     :ratio="16 / 9"
+                    :fit="item.logoImage ? 'contain' : 'cover'"
                   >
-                    <div
-                      class="absolute-bottom text-subtitle2 bg-transparent text-white q-pa-sm ellipsis"
-                    >
+                    <div class="absolute-bottom text-subtitle1 ellipsis row q-pa-sm items-center">
                       {{ item.title }}
+                      <q-space />
+                      <q-btn label="Open" color="secondary" outline />
+                    </div>
+                    <div class="absolute-top-right" style="padding:0;background-color: transparent;">
+                      <q-btn
+                        flat
+                        color="grey-6"
+                        icon="delete"
+                        round
+                        @click.stop.prevent="confirmDeleteBmc(item)"
+                        aria-label="Delete canvas"
+                      />
                     </div>
                   </q-img>
-                  <q-card-actions>
-                    <q-btn
-                      flat
-                      color="negative"
-                      icon="delete"
-                      @click.stop.prevent="confirmDeleteBmc(item)"
-                      aria-label="Delete canvas"
-                    />
-                    <q-space />
-                    <q-btn label="Open" color="primary" flat />
-                  </q-card-actions>
                 </q-card>
               </router-link>
             </div>
@@ -180,6 +192,7 @@ import { Dialog } from 'quasar'
 import ColorHash from 'color-hash'
 const colorHash = new ColorHash()
 import defaultBackground from '@/assets/bmc/default_bmc_logo_background.jpg'
+import { APP_NAME } from '@/utils/constants'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -205,7 +218,7 @@ const bmcs = computed<BmcItem[]>(() => {
 useMeta(() => {
   return {
     title: teamsStore.currentTeam?.name,
-    titleTemplate: (title) => `Project: ${title} - BMCoach`,
+    titleTemplate: (title) => `Project: ${title} - ${APP_NAME}`,
   }
 })
 
@@ -261,9 +274,5 @@ function showEditNameDialog() {
 }
 .item-image.default-background img {
   opacity: 0.5;
-}
-
-.item-image.fix-white {
-  background-color: rgba(69, 89, 100, 0.33) !important;
 }
 </style>

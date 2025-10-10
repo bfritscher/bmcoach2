@@ -2,7 +2,7 @@
   <q-dialog ref="dialogRef" @hide="onDialogHide">
     <q-card style="max-width: 80vw">
       <q-bar>
-        <span class="text-weight-bold">Handbook</span>
+        <span>Handbook</span>
         <q-space />
 
         <q-btn v-close-popup flat round dense icon="close" />

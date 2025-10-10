@@ -11,6 +11,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useBMCStore } from '@/stores/bmc-store'
 import { useBmcUIStore } from '@/stores/bmc-ui-store'
 import BmcCanvas from '@/components/bmc/BmcCanvas.vue'
+import { APP_NAME } from '@/utils/constants'
 
 const $q = useQuasar()
 const route = useRoute()
@@ -78,7 +79,7 @@ watch(
 useMeta(() => {
   return {
     title: canvasStore.canvas?.title,
-    titleTemplate: (title) => `${title} - Business Model Canvas - BMCoach`,
+    titleTemplate: (title) => `${title} - Business Model Canvas - ${APP_NAME}`,
   }
 })
 </script>

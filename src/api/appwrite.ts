@@ -2,7 +2,6 @@ import { Client, Account, Databases, Teams, Avatars, Storage } from 'appwrite';
 
 export const client = new Client()
   .setEndpoint('https://appwrite.bf0.ch/v1')
-  //.setProject('bmcoach-test');
   .setProject('bmdesigner');
 
 // TODO: setLocale based on client?

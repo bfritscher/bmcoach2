@@ -5,7 +5,7 @@
       <q-card flat bordered class="bg-primary text-white">
         <q-card-section class="row items-center q-col-gutter-md">
           <div class="col-12 col-sm">
-            <div class="text-h5 text-weight-bold">Your Projects</div>
+            <div class="text-h5">Your Projects</div>
           </div>
           <div class="col-auto row items-center q-gutter-sm">
             <q-btn
@@ -82,10 +82,11 @@
 </template>
 
 <script setup lang="ts">
-import { useQuasar } from 'quasar'
+import { useQuasar, useMeta } from 'quasar'
 import { useTeamsStore } from '@/stores/teams'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { APP_NAME } from '@/utils/constants'
 
 const teamsStore = useTeamsStore()
 const $q = useQuasar()
@@ -133,5 +134,12 @@ function showCreateProjectDialog() {
 
 onMounted(async () => {
   teamsStore.getTeams()
+})
+
+useMeta(() => {
+  return {
+    title: APP_NAME,
+    titleTemplate: (title) => `${title}`,
+  }
 })
 </script>
